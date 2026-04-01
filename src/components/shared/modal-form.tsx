@@ -1,27 +1,30 @@
 "use client";
 
-import { ComponentProps, useTransition } from "react";
+import { ComponentProps, useEffect, useRef } from "react";
+import { useFormStatus } from "react-dom";
 
-type ModalFormProps = ComponentProps<"form"> & {
-  action: (formData: FormData) => void | Promise<void>;
-};
+function ModalFormInner({ children }: { children: React.ReactNode }) {
+  const { pending } = useFormStatus();
+  const wasPending = useRef(false);
 
-export function ModalForm({ action, children, ...props }: ModalFormProps) {
-  const [isPending, startTransition] = useTransition();
+  useEffect(() => {
+    if (wasPending.current && !pending) {
+      window.location.hash = "";
+    }
+    wasPending.current = pending;
+  }, [pending]);
 
   return (
-    <form
-      {...props}
-      action={(formData) => {
-        startTransition(async () => {
-          await action(formData);
-          window.location.hash = "";
-        });
-      }}
-    >
-      <fieldset disabled={isPending} style={{ display: "contents" }}>
-        {children}
-      </fieldset>
+    <fieldset disabled={pending} style={{ display: "contents" }}>
+      {children}
+    </fieldset>
+  );
+}
+
+export function ModalForm({ children, ...props }: ComponentProps<"form">) {
+  return (
+    <form {...props}>
+      <ModalFormInner>{children}</ModalFormInner>
     </form>
   );
 }
