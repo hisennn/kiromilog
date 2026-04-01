@@ -1,0 +1,22 @@
+diff --git a/node_modules/@neondatabase/auth/dist/next/server/index.mjs b/node_modules/@neondatabase/auth/dist/next/server/index.mjs
+index d0e30e3..7704fd7 100644
+--- a/node_modules/@neondatabase/auth/dist/next/server/index.mjs
++++ b/node_modules/@neondatabase/auth/dist/next/server/index.mjs
+@@ -809,7 +809,7 @@ function createAuthServerInternal(config) {
+ 						...cookie,
+ 						domain
+ 					} : cookie;
+-					await ctx.setCookie(cookie.name, cookie.value, cookieOptions);
++					try { await ctx.setCookie(cookie.name, cookie.value, cookieOptions); } catch (e) { }
+ 				}
+ 			}
+ 			try {
+@@ -820,7 +820,7 @@ function createAuthServerInternal(config) {
+ 				});
+ 				if (sessionDataCookie) {
+ 					const [parsedSessionData] = parseSetCookies(sessionDataCookie);
+-					if (parsedSessionData) await ctx.setCookie(parsedSessionData.name, parsedSessionData.value, parsedSessionData);
++					if (parsedSessionData) try { await ctx.setCookie(parsedSessionData.name, parsedSessionData.value, parsedSessionData); } catch (e) { }
+ 				}
+ 			} catch (error) {
+ 				console.error("[fetchWithAuth] Failed to mint session data cookie:", error);
