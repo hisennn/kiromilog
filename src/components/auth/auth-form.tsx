@@ -29,7 +29,7 @@ export function AuthForm({ action, mode }: AuthFormProps) {
         </h1>
         <p className="max-w-md text-base text-muted">
           {isSignUp
-            ? "Create an account to build your list, favorites, and track activity on Kiromilog."
+            ? "Create an account to build your list, favorites, and track activity on Kiromilog. We will ask you to verify your email before entering the app."
             : "Use your email and password to sign in. Your profile is automatically synced on first access."}
         </p>
       </div>

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import { signOutAction } from "@/lib/library-actions";
@@ -5,92 +6,102 @@ import { signOutAction } from "@/lib/library-actions";
 type AppHeaderProps = {
   nickname: string;
   username: string;
-  current?: "feed" | "profile";
+  avatarUrl?: string | null;
+  current?: "feed" | "profile" | "settings" | null;
   searchQuery?: string;
 };
+
+function NavLink({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
+  return (
+    <Link
+      className={`inline-block origin-center transition-all duration-200 ${active ? "!text-[#b82644] font-medium" : "text-muted nav-hover-link"}`}
+      href={href}
+    >
+      {children}
+    </Link>
+  );
+}
 
 export function AppHeader({
   nickname,
   username,
-  current = "feed",
+  avatarUrl = null,
+  current = null,
   searchQuery = "",
 }: AppHeaderProps) {
   return (
-    <header className="app-header">
-      <div className="header-main-row">
-        <div className="header-brand-row">
-          <Link className="header-brand eyebrow transition-colors hover:text-primary" href="/home">
-            KIROMILOG
-          </Link>
+    <header className="flex w-full items-center justify-between border-b border-line pb-4 mb-4">
+      <div className="flex items-center gap-10">
+        <Link className="font-display text-2xl font-medium tracking-tight text-foreground transition-colors hover:opacity-80" href="/home">
+          Kiromilog.
+        </Link>
+
+        <nav className="flex items-center gap-5 text-sm uppercase tracking-wider">
+          <NavLink href="/home" active={current === "feed"}>Feed</NavLink>
+          <NavLink href={`/u/${username}`} active={current === "profile"}>Profile</NavLink>
+        </nav>
+      </div>
+
+      <div className="flex items-center gap-6">
+        <div className="relative">
+          <form action="/search" className="flex items-center">
+            <input
+              autoComplete="off"
+              className="w-80 border border-line bg-transparent px-3 py-1.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted/60 focus:border-primary hover:border-line/80"
+              defaultValue={searchQuery}
+              name="q"
+              placeholder="Search..."
+              type="search"
+            />
+            <div className="absolute right-3 text-muted pointer-events-none" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+            </div>
+          </form>
         </div>
 
-        <div className="header-center">
-          <nav className="nav-group flex items-center gap-3 text-sm">
-            <Link className={`nav-link ${current === "feed" ? "nav-link-active" : ""}`} href="/home">
-              Feed
-            </Link>
-            <Link className={`nav-link ${current === "profile" ? "nav-link-active" : ""}`} href={`/u/${username}`}>
-              Profile
-            </Link>
-          </nav>
-
-          <div className="header-search">
-            <form action="/search" className="header-search-shell">
-              <input
-                autoComplete="off"
-                className="search-input header-search-input w-full pr-10"
-                defaultValue={searchQuery}
-                name="q"
-                placeholder="Search anime or manga"
-                type="search"
-              />
-              <div className="header-search-icon" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="m21 21-4.3-4.3" />
-                </svg>
-              </div>
-            </form>
-          </div>
-        </div>
-
-        <div className="header-actions">
-          <div className="header-account">
-            <button className="header-account-trigger" type="button">
-              <span aria-hidden="true" className="header-account-avatar">
+        <div className="header-account">
+          <button className="header-account-trigger" type="button">
+            {avatarUrl ? (
+              <span aria-hidden="true" className="relative flex h-7 w-7 shrink-0 overflow-hidden bg-surface-strong ring-1 ring-line">
+                <Image alt="" className="object-cover object-center" fill sizes="28px" src={avatarUrl} />
+              </span>
+            ) : (
+              <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center bg-surface-strong text-xs font-bold text-foreground ring-1 ring-line">
                 {nickname.slice(0, 1).toUpperCase()}
               </span>
-              <span className="header-account-handle">@{username}</span>
-              <span aria-hidden="true" className="header-account-caret">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </span>
-            </button>
+            )}
+            <span className="header-account-handle ml-1">@{username}</span>
+            <span aria-hidden="true" className="header-account-caret">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </span>
+          </button>
 
-            <div className="header-account-menu panel">
-              <div className="space-y-1 pb-3">
-                <p className="text-sm text-foreground">{nickname}</p>
-                <p className="text-xs text-muted">@{username}</p>
-              </div>
-              <Link className="header-account-link" href={`/u/${username}`}>
-                Profile
-              </Link>
-              <Link className="header-account-link" href="/settings">
-                Settings
-              </Link>
-              <div className="header-account-separator" />
-              <form action={signOutAction}>
-                <button className="header-account-link header-account-logout text-red-400 hover:text-red-300 hover:bg-red-400/10" type="submit">
-                  <span>Logout</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                    <polyline points="16 17 21 12 16 7" />
-                    <line x1="21" x2="9" y1="12" y2="12" />
-                  </svg>
-                </button>
-              </form>
+          <div className="header-account-menu border border-line bg-background shadow-xl absolute right-0 mt-2 min-w-[200px] p-2">
+            <div className="space-y-1 pb-3 px-2 border-b border-line mb-2">
+              <p className="text-sm font-medium text-foreground">{nickname}</p>
+              <p className="text-xs text-muted">@{username}</p>
             </div>
+            <Link className="flex w-full px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-surface-strong" href={`/u/${username}`}>
+              <span>Profile</span>
+            </Link>
+            <Link className="flex w-full px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-surface-strong" href="/settings">
+              <span>Settings</span>
+            </Link>
+            <form action={signOutAction} className="mt-2 pt-2 border-t border-line">
+              <button className="flex w-full items-center justify-between px-2 py-1.5 text-sm text-red-500 transition-colors hover:bg-red-500/10" type="submit">
+                <span>Logout</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" x2="9" y1="12" y2="12" />
+                </svg>
+              </button>
+            </form>
           </div>
         </div>
       </div>

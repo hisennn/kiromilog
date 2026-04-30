@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "avatar_max_upload_mb" integer DEFAULT 5 NOT NULL;

@@ -16,6 +16,8 @@
 # next.js
 /.next/
 /out/
+/public/uploads/avatars/*
+!/public/uploads/avatars/.gitkeep
 
 # production
 /build
