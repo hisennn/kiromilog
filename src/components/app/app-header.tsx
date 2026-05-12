@@ -1,13 +1,17 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { signOutAction } from "@/lib/library-actions";
+import { MessageNotifications } from "@/components/app/message-notifications";
+import { getUnreadActivityLikeNotifications } from "@/lib/activity-like-notifications";
+import { signOutAction } from "@/lib/auth-actions";
+import { env } from "@/lib/env";
 
 type AppHeaderProps = {
   nickname: string;
   username: string;
+  viewerId: string;
   avatarUrl?: string | null;
-  current?: "feed" | "profile" | "settings" | null;
+  current?: "feed" | "profile" | "messages" | "settings" | null;
   searchQuery?: string;
 };
 
@@ -22,13 +26,16 @@ function NavLink({ href, active, children }: { href: string; active: boolean; ch
   );
 }
 
-export function AppHeader({
+export async function AppHeader({
   nickname,
   username,
+  viewerId,
   avatarUrl = null,
   current = null,
   searchQuery = "",
 }: AppHeaderProps) {
+  const activityLikeNotifications = await getUnreadActivityLikeNotifications(viewerId);
+
   return (
     <header className="flex w-full items-center justify-between border-b border-line pb-4 mb-4">
       <div className="flex items-center gap-10">
@@ -43,7 +50,7 @@ export function AppHeader({
       </div>
 
       <div className="flex items-center gap-6">
-        <div className="relative">
+        <div className="header-search-actions">
           <form action="/search" className="flex items-center">
             <input
               autoComplete="off"
@@ -56,10 +63,27 @@ export function AppHeader({
             <div className="absolute right-3 text-muted pointer-events-none" aria-hidden="true">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.3-4.3" />
-              </svg>
+              <path d="m21 21-4.3-4.3" />
+            </svg>
             </div>
           </form>
+          <MessageNotifications
+            initialActivityLikeNotifications={activityLikeNotifications}
+            pusherCluster={env.NEXT_PUBLIC_PUSHER_CLUSTER}
+            pusherKey={env.NEXT_PUBLIC_PUSHER_APP_KEY}
+            viewerId={viewerId}
+            viewerUsername={username}
+          />
+          <Link
+            aria-label="Messages"
+            className={`header-icon-link ${current === "messages" ? "header-icon-link-active" : ""}`}
+            href="/messages"
+            title="Messages"
+          >
+            <svg aria-hidden="true" fill="none" height="18" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="18" xmlns="http://www.w3.org/2000/svg">
+              <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+            </svg>
+          </Link>
         </div>
 
         <div className="header-account">

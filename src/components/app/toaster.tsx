@@ -20,12 +20,12 @@ export function Toaster() {
   const [currentToast, setCurrentToast] = useState<ToastEvent | null>(null);
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let timeortId: NodeJS.Timeout;
     
     const listener = (event: ToastEvent) => {
       setCurrentToast(event);
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
+      clearTimeout(timeortId);
+      timeortId = setTimeout(() => {
         setCurrentToast(null);
       }, 3000);
     };
@@ -33,7 +33,7 @@ export function Toaster() {
     listeners.push(listener);
     return () => {
       listeners = listeners.filter((l) => l !== listener);
-      clearTimeout(timeoutId);
+      clearTimeout(timeortId);
     };
   }, []);
 

@@ -72,7 +72,7 @@ export default async function AnimeDetailPage({ params }: AnimePageProps) {
 
   return (
     <main className="app-shell animate-fade-in-up">
-      <AppHeader avatarUrl={viewer.avatarUrl} nickname={viewer.nickname} username={viewer.username} />
+      <AppHeader avatarUrl={viewer.avatarUrl} nickname={viewer.nickname} username={viewer.username} viewerId={viewer.id} />
 
       <section className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)]">
         <div className="space-y-4 animate-fade-in-up animate-delay-100">
@@ -94,28 +94,28 @@ export default async function AnimeDetailPage({ params }: AnimePageProps) {
             />
             {payload.trailer?.url ? (
               <a className="button button-ghost w-full justify-center" href={payload.trailer.url} rel="noreferrer" target="_blank">
-                Watch Trailer
+                Watch trailer
               </a>
             ) : null}
           </div>
 
           <div className="panel space-y-3 text-sm">
-            <div className="fact-row"><span>formato</span><strong className="uppercase tracking-wide text-xs">anime</strong></div>
+            <div className="fact-row"><span>format</span><strong className="uppercase tracking-wide text-xs">anime</strong></div>
             <div className="fact-row"><span>status</span><strong>{payload.status ?? "-"}</strong></div>
-            <div className="fact-row"><span>episódios</span><strong>{payload.episodes ?? "-"}</strong></div>
-            <div className="fact-row"><span>temporada</span><strong>{payload.season ? `${payload.season} ${payload.year ?? ""}`.trim() : payload.year ?? "-"}</strong></div>
-            <div className="fact-row"><span>origem</span><strong>{payload.source ?? "-"}</strong></div>
-            <div className="fact-row"><span>duração</span><strong>{payload.duration ?? "-"}</strong></div>
-            <div className="fact-row"><span>avaliação</span><strong>{payload.rating ?? "-"}</strong></div>
-            <div className="fact-row"><span>exibição</span><strong>{payload.aired?.string ?? "-"}</strong></div>
-            <div className="fact-row"><span>transmissão</span><strong>{payload.broadcast?.string ?? "-"}</strong></div>
+            <div className="fact-row"><span>episodes</span><strong>{payload.episodes ?? "-"}</strong></div>
+            <div className="fact-row"><span>season</span><strong>{payload.season ? `${payload.season} ${payload.year ?? ""}`.trim() : payload.year ?? "-"}</strong></div>
+            <div className="fact-row"><span>source</span><strong>{payload.source ?? "-"}</strong></div>
+            <div className="fact-row"><span>duration</span><strong>{payload.duration ?? "-"}</strong></div>
+            <div className="fact-row"><span>rating</span><strong>{payload.rating ?? "-"}</strong></div>
+            <div className="fact-row"><span>aired</span><strong>{payload.aired?.string ?? "-"}</strong></div>
+            <div className="fact-row"><span>broadcast</span><strong>{payload.broadcast?.string ?? "-"}</strong></div>
           </div>
 
           <div className="panel space-y-3">
-             <p className="eyebrow tracking-widest text-[10px]">Produção</p>
+             <p className="eyebrow tracking-widest text-[10px]">Production</p>
             <div className="space-y-2 text-sm text-muted">
-              <p><span className="text-foreground">Studios:</span> {(payload.studios ?? []).map((studio) => studio.name).join(", ") || "Não informado"}</p>
-              <p><span className="text-foreground">Producers:</span> {(payload.producers ?? []).map((producer) => producer.name).join(", ") || "Não informado"}</p>
+              <p><span className="text-foreground">Studios:</span> {(payload.studios ?? []).map((studio) => studio.name).join(", ") || "Not listed"}</p>
+              <p><span className="text-foreground">Production:</span> {(payload.producers ?? []).map((producer) => producer.name).join(", ") || "Not listed"}</p>
             </div>
           </div>
 
@@ -142,7 +142,7 @@ export default async function AnimeDetailPage({ params }: AnimePageProps) {
                 <div className="shrink-0 flex flex-col items-center justify-center border border-line bg-surface-strong w-24 h-24">
                   <span className="text-xs uppercase tracking-widest text-muted/60 mb-1">Score</span>
                   <strong className="font-display text-4xl text-foreground leading-none">{payload.score}</strong>
-                  <span className="text-[10px] text-muted/40 mt-1">{payload.scored_by?.toLocaleString("pt-BR")} users</span>
+                  <span className="text-[10px] text-muted/40 mt-1">{payload.scored_by?.toLocaleString("en-US")} users</span>
                 </div>
               ) : null}
             </div>
@@ -150,7 +150,7 @@ export default async function AnimeDetailPage({ params }: AnimePageProps) {
 
           <section className="animate-fade-in-up animate-delay-300">
             <p className="text-base leading-relaxed text-muted/90 max-w-4xl">
-              {media.synopsis || "No synopsis available on Jikan."}
+              {media.synopsis || "No synopsis on Jikan."}
             </p>
           </section>
         </div>

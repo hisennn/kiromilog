@@ -24,17 +24,17 @@ export default async function HomePage() {
 
   return (
     <main className="app-shell animate-fade-in-up">
-      <AppHeader avatarUrl={profile.avatarUrl} current="feed" nickname={profile.nickname} username={profile.username} />
+      <AppHeader avatarUrl={profile.avatarUrl} current="feed" nickname={profile.nickname} username={profile.username} viewerId={profile.id} />
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_22rem]">     
         <div className="space-y-4">
           <section className="section-head animate-fade-in-up animate-delay-100">
             <div>
               <p className="eyebrow">Feed</p>
-              <h1 className="font-display text-4xl text-foreground">Recent Activity</h1>
+              <h1 className="font-display text-4xl text-foreground">Recent activity</h1>
             </div>
             <p className="max-w-xl text-sm leading-7 text-muted">
-              Here you will see your updates. Once you start following people, their activities will appear here as well.
+              Your updates appear here. When you follow people, their activity appears here too.
             </p>
           </section>
 
@@ -47,8 +47,8 @@ export default async function HomePage() {
               ))
             ) : (
               <EmptyState
-                title="No timeline yet"
-                description="Add your first anime or manga to start building your timeline."
+                title="No activity yet"
+                description="Add your first anime or manga to get started."
                 className="animate-fade-in-up animate-delay-200"
               />
             )}
@@ -86,8 +86,8 @@ export default async function HomePage() {
           <section className="panel animate-fade-in-up animate-delay-300 space-y-4">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="eyebrow tracking-widest text-[10px] text-muted">In Progress</p>
-                <h2 className="font-display text-2xl text-foreground mt-1">Active Tracking</h2>
+                <p className="eyebrow tracking-widest text-[10px] text-muted">In progress</p>
+                <h2 className="font-display text-2xl text-foreground mt-1">Now</h2>
               </div>
               <span className="text-xs text-muted/60">{inProgress.length}</span>   
             </div>
@@ -114,8 +114,8 @@ export default async function HomePage() {
               </div>
             ) : (
               <EmptyState
-                title="Nothing registered yet"
-                description="Anime and manga you mark as watching or reading will appear here."
+                title="Nothing tracked yet"
+                description="Anime and manga marked as watching or reading appear here."
                 className="animate-fade-in-up animate-delay-300"
               />
             )}

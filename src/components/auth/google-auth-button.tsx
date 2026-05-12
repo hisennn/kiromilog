@@ -21,7 +21,7 @@ export function GoogleAuthButton({ label }: GoogleAuthButtonProps) {
       });
 
       if (response.error) {
-        setError("Google login indisponivel agora.");
+        setError("Google login is unavailable right now.");
       }
     });
   }

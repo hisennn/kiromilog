@@ -68,8 +68,7 @@ export function VerifyEmailActions({
           Check your email
         </h1>
         <p className="max-w-xl text-sm leading-7 text-muted">
-          We sent a code to <strong>{email}</strong>. Enter it below to verify your
-          account.
+          We sent a code to <strong>{email}</strong>. Enter it below to confirm your account.
         </p>
       </div>
 
@@ -84,7 +83,7 @@ export function VerifyEmailActions({
             maxLength={8}
             name="otp"
             pattern="[0-9]*"
-            placeholder="Enter 8-digit code"
+            placeholder="Enter the code"
             type="text"
           />
         </label>
@@ -92,7 +91,7 @@ export function VerifyEmailActions({
         {verifyState.error ? <p className="text-sm text-accent">{verifyState.error}</p> : null}
 
         <button className="button button-primary w-full" disabled={verifyPending} type="submit">
-          {verifyPending ? "Checking..." : "Verify email"}
+          {verifyPending ? "Verifying..." : "Confirm email"}
         </button>
       </form>
 
@@ -101,7 +100,7 @@ export function VerifyEmailActions({
         {resendState.success ? <p className="text-sm text-primary">{resendState.success}</p> : null}
 
         <p className="text-sm text-muted">
-          Didn&apos;t get the code? Check spam or promotions.
+          Did not receive the code? Check spam and promotions.
         </p>
 
         <div className="flex items-center gap-3">

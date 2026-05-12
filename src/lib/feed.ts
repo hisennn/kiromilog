@@ -6,6 +6,7 @@ import { isExplicitMediaPayload } from "@/lib/content-preferences";
 import { db } from "@/lib/db";
 import {
   activities,
+  activityLikes,
   animeCache,
   favoriteAnime,
   mangaCache,
@@ -19,7 +20,7 @@ import { ActivityPayload } from "@/lib/media-payload";
 export function formatRelativeTime(date: Date) {
   const deltaSeconds = Math.floor((date.getTime() - Date.now()) / 1000);
   const safeSeconds = deltaSeconds === 0 ? -1 : deltaSeconds;
-  const formatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+  const formatter = new Intl.RelativeTimeFormat("en-US", { numeric: "auto" });
   const ranges: Array<[Intl.RelativeTimeFormatUnit, number]> = [
     ["year", 60 * 60 * 24 * 365],
     ["month", 60 * 60 * 24 * 30],
@@ -53,15 +54,73 @@ function mapActivity(item: {
   username: string;
   nickname: string;
   avatarUrl: string | null;
+  likeCount?: number;
+  isLikedByViewer?: boolean;
+  isExplicitBlocked?: boolean;
 }) {
   const payload = item.payload as ActivityPayload;
+  const isExplicitBlocked = item.isExplicitBlocked ?? false;
 
   return {
     ...item,
-    title: payload.title ?? `MAL ${item.mediaMalId ?? "?"}`,
+    title: isExplicitBlocked
+      ? "NSFW content"
+      : payload.title ?? `MAL ${item.mediaMalId ?? "?"}`,
     imageUrl: payload.imageUrl ?? null,
+    likeCount: item.likeCount ?? 0,
+    isLikedByViewer: item.isLikedByViewer ?? false,
+    isExplicitBlocked,
     relativeTime: formatRelativeTime(item.createdAt),
   };
+}
+
+async function hydrateActivityLikes<
+  T extends {
+    id: string;
+  },
+>(items: T[], viewerId: string) {
+  const activityIds = items.map((item) => item.id);
+
+  if (!activityIds.length) {
+    return items.map((item) => ({
+      ...item,
+      likeCount: 0,
+      isLikedByViewer: false,
+    }));
+  }
+
+  const [likeRows, viewerLikeRows] = await Promise.all([
+    db
+      .select({
+        activityId: activityLikes.activityId,
+        count: count(),
+      })
+      .from(activityLikes)
+      .where(inArray(activityLikes.activityId, activityIds))
+      .groupBy(activityLikes.activityId),
+    db
+      .select({
+        activityId: activityLikes.activityId,
+      })
+      .from(activityLikes)
+      .where(
+        and(
+          eq(activityLikes.userId, viewerId),
+          inArray(activityLikes.activityId, activityIds),
+        ),
+      ),
+  ]);
+
+  const countByActivityId = new Map(
+    likeRows.map((row) => [row.activityId, row.count]),
+  );
+  const likedActivityIds = new Set(viewerLikeRows.map((row) => row.activityId));
+
+  return items.map((item) => ({
+    ...item,
+    likeCount: countByActivityId.get(item.id) ?? 0,
+    isLikedByViewer: likedActivityIds.has(item.id),
+  }));
 }
 
 async function filterExplicitActivities<
@@ -113,16 +172,21 @@ async function filterExplicitActivities<
       .map((entry) => entry.malId),
   );
 
-  return items.filter((item) => {
+  return items.map((item) => {
+    let isExplicitBlocked = false;
+
     if (item.mediaKind === "anime" && item.mediaMalId !== null) {
-      return !blockedAnimeIds.has(item.mediaMalId);
+      isExplicitBlocked = blockedAnimeIds.has(item.mediaMalId);
     }
 
     if (item.mediaKind === "manga" && item.mediaMalId !== null) {
-      return !blockedMangaIds.has(item.mediaMalId);
+      isExplicitBlocked = blockedMangaIds.has(item.mediaMalId);
     }
 
-    return true;
+    return {
+      ...item,
+      isExplicitBlocked,
+    };
   });
 }
 
@@ -160,8 +224,9 @@ export async function getViewerFeed(
     .orderBy(desc(activities.createdAt))
     .limit(24);
 
+  const itemsWithLikes = await hydrateActivityLikes(items, userId);
   const visibleItems = await filterExplicitActivities(
-    items,
+    itemsWithLikes,
     options?.includeAdultContent ?? false,
   );
 
@@ -170,7 +235,7 @@ export async function getViewerFeed(
 
 export async function getProfileFeed(
   actorId: string,
-  options?: { includeAdultContent?: boolean },
+  options?: { includeAdultContent?: boolean; viewerId?: string },
 ) {
   const items = await db
     .select({
@@ -195,8 +260,12 @@ export async function getProfileFeed(
     .orderBy(desc(activities.createdAt))
     .limit(24);
 
-  const visibleItems = await filterExplicitActivities(
+  const itemsWithLikes = await hydrateActivityLikes(
     items,
+    options?.viewerId ?? actorId,
+  );
+  const visibleItems = await filterExplicitActivities(
+    itemsWithLikes,
     options?.includeAdultContent ?? false,
   );
 
@@ -222,6 +291,54 @@ export async function getProfileStats(userId: string) {
     animeEntries: animeTotal[0]?.count ?? 0,
     mangaEntries: mangaTotal[0]?.count ?? 0,
   };
+}
+
+export async function getProfileConnections(
+  userId: string,
+  type: "followers" | "following",
+) {
+  const rows =
+    type === "followers"
+      ? await db
+          .select({ userId: userFollows.followerId })
+          .from(userFollows)
+          .where(eq(userFollows.followingId, userId))
+          .orderBy(desc(userFollows.createdAt))
+          .limit(48)
+      : await db
+          .select({ userId: userFollows.followingId })
+          .from(userFollows)
+          .where(eq(userFollows.followerId, userId))
+          .orderBy(desc(userFollows.createdAt))
+          .limit(48);
+
+  const userIds = rows.map((row) => row.userId);
+
+  if (!userIds.length) {
+    return [];
+  }
+
+  const profiles = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      nickname: users.nickname,
+      avatarUrl: users.avatarUrl,
+    })
+    .from(users)
+    .where(inArray(users.id, userIds));
+  const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+
+  return userIds
+    .map((id) => profileById.get(id))
+    .filter((profile): profile is NonNullable<typeof profile> => Boolean(profile));
+}
+
+export function isLibraryEntryExplicit(
+  entry: { payload: unknown },
+  mediaType: "anime" | "manga",
+) {
+  return isExplicitMediaPayload(entry.payload, mediaType);
 }
 
 export async function getProfileLibrary(userId: string, mediaType: "anime" | "manga") {
@@ -273,6 +390,8 @@ export async function getProfileFavoriteAnime(
   limit = 12,
   options?: { includeAdultContent?: boolean },
 ) {
+  void options;
+
   const favorites = await db
     .select({
       id: favoriteAnime.id,
@@ -288,11 +407,7 @@ export async function getProfileFavoriteAnime(
     .orderBy(asc(favoriteAnime.position), asc(favoriteAnime.createdAt))
     .limit(limit);
 
-  if (options?.includeAdultContent) {
-    return favorites;
-  }
-
-  return favorites.filter((entry) => !isExplicitMediaPayload(entry.payload, "anime"));
+  return favorites;
 }
 
 export async function getInProgressEntries(

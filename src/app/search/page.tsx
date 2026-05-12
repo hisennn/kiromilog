@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, count, eq, ilike, inArray, or } from "drizzle-orm";
 
 import { AppHeader } from "@/components/app/app-header";
 import { SearchResultCard } from "@/components/search/search-result-card";
+import { UserSearchResultCard } from "@/components/search/user-search-result-card";
 import { db } from "@/lib/db";
-import { favoriteAnime, userAnimeList, userMangaList } from "@/lib/db/schema";
+import { favoriteAnime, userAnimeList, userFollows, userMangaList, users } from "@/lib/db/schema";
 import { searchMedia } from "@/lib/jikan/client";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
@@ -18,6 +19,44 @@ type SearchPageProps = {
   }>;
 };
 
+type SearchType = "anime" | "manga" | "users";
+
+async function searchUsers(query: string) {
+  const pattern = `%${query.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+  const rows = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      nickname: users.nickname,
+      avatarUrl: users.avatarUrl,
+      bio: users.bio,
+    })
+    .from(users)
+    .where(or(ilike(users.username, pattern), ilike(users.nickname, pattern)))
+    .limit(30);
+
+  return Promise.all(
+    rows.map(async (user) => {
+      const [followers, following] = await Promise.all([
+        db
+          .select({ count: count() })
+          .from(userFollows)
+          .where(eq(userFollows.followingId, user.id)),
+        db
+          .select({ count: count() })
+          .from(userFollows)
+          .where(eq(userFollows.followerId, user.id)),
+      ]);
+
+      return {
+        ...user,
+        followers: followers[0]?.count ?? 0,
+        following: following[0]?.count ?? 0,
+      };
+    }),
+  );
+}
+
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const profile = await ensureViewerProfile();
 
@@ -27,12 +66,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   const params = await searchParams;
   const query = (params.q ?? "").trim().slice(0, 100);
-  const searchType = params.type === "manga" ? "manga" : "anime";
-  const results = query
+  const searchType: SearchType =
+    params.type === "manga" || params.type === "users" ? params.type : "anime";
+  const results = query && searchType !== "users"
     ? await searchMedia(query, searchType, {
         includeAdultContent: profile.showAdultContent,
       })
     : [];
+  const userResults = query && searchType === "users" ? await searchUsers(query) : [];
   const resultIds = results.map((item) => item.malId);
   const [existingEntries, favoriteEntries] = await Promise.all([
     resultIds.length === 0
@@ -86,15 +127,15 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   return (
     <main className="app-shell">
-      <AppHeader avatarUrl={profile.avatarUrl} nickname={profile.nickname} username={profile.username} />
+      <AppHeader avatarUrl={profile.avatarUrl} nickname={profile.nickname} username={profile.username} viewerId={profile.id} />
 
       <section className="section-head">
         <div>
-          <p className="eyebrow tracking-widest text-[10px] text-muted">Search</p>
-          <h1 className="font-display text-4xl text-foreground mt-1">Browse catalog</h1>
+          <p className="eyebrow tracking-widest text-[10px] text-muted">Busca</p>
+          <h1 className="font-display text-4xl text-foreground mt-1">Catalog</h1>
         </div>
         <p className="max-w-xl text-sm leading-7 text-muted mt-2">
-          Pick a type above the list to keep your search focused on anime or manga without mixing results.
+          Choose a type to keep results focused.
         </p>
       </section>
 
@@ -114,11 +155,25 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               >
                 Manga
               </Link>
+              <Link
+                className={`search-toggle-button ${searchType === "users" ? "search-toggle-button-active" : ""}`}
+                href={`/search?q=${encodeURIComponent(query)}&type=users`}
+              >
+                People
+              </Link>
             </div>
-            <span className="text-sm text-muted">{hydratedResults.length} results</span>
+            <span className="text-sm text-muted">
+              {searchType === "users" ? userResults.length : hydratedResults.length} results
+            </span>
           </div>
 
-          {hydratedResults.length ? (
+          {searchType === "users" && userResults.length ? (
+            <div className="space-y-3">
+              {userResults.map((user) => (
+                <UserSearchResultCard key={user.id} user={user} />
+              ))}
+            </div>
+          ) : searchType !== "users" && hydratedResults.length ? (
             <div className="space-y-3">
               {hydratedResults.map((item) => (
                 <SearchResultCard item={item} key={`${item.mediaType}-${item.malId}`} />
@@ -126,13 +181,13 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             </div>
           ) : (
             <article className="panel">
-              <p className="text-sm text-muted">No results found for this search.</p>
+              <p className="text-sm text-muted">Nenhum resultado encontrado.</p>
             </article>
           )}
         </section>
       ) : (
         <article className="panel">
-          <p className="text-sm text-muted">Type a title in the search bar above to get started.</p>
+          <p className="text-sm text-muted">Type a title in the search field above to get started.</p>
         </article>
       )}
     </main>

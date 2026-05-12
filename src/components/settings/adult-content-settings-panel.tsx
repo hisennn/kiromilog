@@ -30,7 +30,7 @@ export function AdultContentSettingsPanel({
         return;
       }
 
-      toast(nextValue ? "NSFW content on." : "NSFW content off.");
+      toast(nextValue ? "NSFW content ativado." : "NSFW content desativado.");
       router.refresh();
     });
   };
@@ -39,17 +39,16 @@ export function AdultContentSettingsPanel({
     <section className="panel animate-fade-in-up animate-delay-400 space-y-4">
       <div>
         <p className="eyebrow tracking-widest text-[10px] text-muted">Catalog</p>
-        <h2 className="mt-1 font-display text-2xl text-foreground">Adult content</h2>
+        <h2 className="mt-1 font-display text-2xl text-foreground">NSFW content</h2>
       </div>
 
       <div className="h-px w-full bg-line/70" />
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <p className="text-sm font-medium text-foreground">Show NSFW content (+18)</p>
+          <p className="text-sm font-medium text-foreground">Show NSFW content</p>
           <p className="text-xs leading-5 text-muted">
-            When disabled, explicit anime and manga are hidden across search, detail pages, feeds,
-            and profile lists.
+            Quando desligado, anime e manga explicitos ficam ocultos em busca, paginas, feed e perfil.
           </p>
         </div>
 
@@ -57,7 +56,7 @@ export function AdultContentSettingsPanel({
           type="button"
           role="switch"
           aria-checked={enabled}
-          aria-label="Show adult content"
+          aria-label="Show NSFW content"
           className={`adult-content-toggle ${enabled ? "adult-content-toggle-active" : ""}`}
           disabled={isPending}
           onClick={handleToggle}

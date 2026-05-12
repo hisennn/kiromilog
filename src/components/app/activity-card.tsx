@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { ActivityLikeButton } from "@/components/app/activity-like-button";
+
 type ActivityCardProps = {
   variant?: "feed" | "profile";
   activity: {
@@ -17,6 +19,9 @@ type ActivityCardProps = {
     username: string;
     nickname: string;
     avatarUrl?: string | null;
+    likeCount: number;
+    isLikedByViewer: boolean;
+    isExplicitBlocked?: boolean;
   };
 };
 
@@ -33,7 +38,7 @@ function getActivityAction(activity: ActivityCardProps["activity"]) {
 
   if (activity.kind === "manga_progress") {
     if (activity.progressFrom && activity.progressTo && activity.progressTo > activity.progressFrom + 1) {
-      return `read chs ${activity.progressFrom + 1}-${activity.progressTo}`;
+      return `read ch ${activity.progressFrom + 1}-${activity.progressTo}`;
     }
 
     if (activity.progressTo) {
@@ -45,46 +50,67 @@ function getActivityAction(activity: ActivityCardProps["activity"]) {
     const listType = activity.kind === "anime_status" ? "anime" : "manga";
 
     if (activity.status === "completed") return "completed";
-    if (activity.status === "watching") return "watching";
-    if (activity.status === "reading") return "reading";
+    if (activity.status === "watching") return "is watching";
+    if (activity.status === "reading") return "is reading";
     if (activity.status === "paused") return "paused";
     if (activity.status === "dropped") return "dropped";
     if (activity.status === "plan_to_watch") return "plans to watch";
     if (activity.status === "plan_to_read") return "plans to read";
-    if (activity.status === "rewatching") return "rewatching";
-    if (activity.status === "rereading") return "rereading";
+    if (activity.status === "rewatching") return "is rewatching";
+    if (activity.status === "rereading") return "is rereading";
 
-    return `added to their ${listType} list`;
+    return `added to ${listType} list`;
   }
 
   return "favorited";
 }
 
 export function ActivityCard({ activity, variant = "feed" }: ActivityCardProps) {
-  const mediaLink = activity.mediaKind && activity.mediaMalId ? `/${activity.mediaKind}/${activity.mediaMalId}` : "#";
+  const mediaLink = activity.isExplicitBlocked
+    ? "/settings"
+    : activity.mediaKind && activity.mediaMalId
+      ? `/${activity.mediaKind}/${activity.mediaMalId}`
+      : "#";
   const actionText = getActivityAction(activity);
+  const imageClassName = `object-cover transition-transform duration-300 ${
+    activity.isExplicitBlocked ? "blur-sm scale-110 opacity-50" : "group-hover:scale-105"
+  }`;
+  const title = activity.isExplicitBlocked ? "NSFW content" : activity.title;
+  const badge = activity.isExplicitBlocked ? (
+    <span className="absolute inset-0 grid place-items-center bg-black/35 text-[10px] font-bold uppercase tracking-[0.2em] text-white">
+      +18
+    </span>
+  ) : null;
 
   if (variant === "profile") {
     return (
-      <article className="activity-card p-3 flex gap-4 items-center bg-transparent border border-line/40 transition-colors hover:border-line/80 group">
+      <article className="activity-card relative p-3 flex gap-4 items-center bg-transparent border border-line/40 transition-colors hover:border-line/80 group">
         <Link href={mediaLink} className="relative aspect-[3/4] w-12 shrink-0 overflow-hidden bg-surface-strong">
           {activity.imageUrl ? (
-            <Image alt={activity.title} className="object-cover transition-transform group-hover:scale-105 duration-300" fill sizes="48px" src={activity.imageUrl} />
+            <Image alt={title} className={imageClassName} fill sizes="48px" src={activity.imageUrl} />
           ) : null}
+          {badge}
         </Link>
         <div className="flex-1 min-w-0">
           <p className="text-sm leading-relaxed truncate tracking-wide">
             <span className="text-muted mr-2 uppercase text-[11px] font-semibold tracking-wider">{actionText}</span>
-            <Link href={mediaLink} className="text-primary font-medium hover:underline">{activity.title}</Link>
+            <Link href={mediaLink} className="text-primary font-medium hover:underline">{title}</Link>
           </p>
           <span className="text-xs text-muted block mt-1">{activity.relativeTime}</span>
+        </div>
+        <div className="activity-like-corner">
+          <ActivityLikeButton
+            activityId={activity.id}
+            initialCount={activity.likeCount}
+            initialLiked={activity.isLikedByViewer}
+          />
         </div>
       </article>
     );
   }
 
   return (
-    <article className="activity-card py-4 border-b border-line/30 last:border-0 sm:px-2 rounded-none transition-colors hover:bg-surface-strong/10">
+    <article className="activity-card relative py-4 border-b border-line/30 last:border-0 sm:px-2 rounded-none transition-colors hover:bg-surface-strong/10">
       <div className="flex gap-4">
         <Link href={`/u/${activity.username}`} className="shrink-0 mt-0.5 group">
           {activity.avatarUrl ? (
@@ -112,13 +138,14 @@ export function ActivityCard({ activity, variant = "feed" }: ActivityCardProps) 
           <div className="flex gap-4 items-start">
             <Link href={mediaLink} className="relative aspect-[3/4] w-12 shrink-0 overflow-hidden bg-surface-strong group">
               {activity.imageUrl ? (
-                <Image alt={activity.title} className="object-cover transition-transform group-hover:scale-105 duration-300" fill sizes="44px" src={activity.imageUrl} />
+                <Image alt={title} className={imageClassName} fill sizes="44px" src={activity.imageUrl} />
               ) : null}
+              {badge}
             </Link>
 
             <div className="min-w-0 flex flex-col justify-center">
               <Link className="block truncate text-[15px] font-semibold text-primary transition-colors hover:underline" href={mediaLink}>
-                {activity.title}
+                {title}
               </Link>
               {activity.mediaKind && (
                 <p className="text-[11px] font-bold uppercase tracking-widest text-muted mt-1">{activity.mediaKind}</p>
@@ -126,6 +153,13 @@ export function ActivityCard({ activity, variant = "feed" }: ActivityCardProps) 
             </div>
           </div>
         </div>
+      </div>
+      <div className="activity-like-corner">
+        <ActivityLikeButton
+          activityId={activity.id}
+          initialCount={activity.likeCount}
+          initialLiked={activity.isLikedByViewer}
+        />
       </div>
     </article>
   );

@@ -23,29 +23,33 @@ export function AuthForm({ action, mode }: AuthFormProps) {
   return (
     <form action={formAction} className="space-y-4">
       <div className="space-y-1">
-        <p className="eyebrow">{isSignUp ? "New Account" : "Access"}</p>
+        <p className="eyebrow">{isSignUp ? "New account" : "Access"}</p>
         <h1 className="font-display text-4xl text-foreground">
-          {isSignUp ? "Get into the rhythm of your catalog." : "Head back to your feed."}
+          {isSignUp ? "Build your list at your own pace." : "Sign in to see your feed."}
         </h1>
         <p className="max-w-md text-base text-muted">
           {isSignUp
-            ? "Create an account to build your list, favorites, and track activity on Kiromilog. We will ask you to verify your email before entering the app."
-            : "Use your email and password to sign in. Your profile is automatically synced on first access."}
+            ? "Create an account to save lists, favorites, and activity on Kiromilog. Before signing in, you confirm your email."
+            : "Use email and password to sign in. Your profile is updated on first access."}
         </p>
       </div>
 
       {isSignUp ? (
         <label className="field">
-          <span>Name</span>
+          <span>Nickname</span>
           <input
-            autoComplete="name"
+            autoComplete="nickname"
+            autoCapitalize="none"
+            autoCorrect="off"
             className="input"
-            name="name"
-            placeholder="How you want to be called"
+            maxLength={30}
+            name="nickname"
+            pattern="[A-Za-z0-9_.-]{3,30}"
+            placeholder="letters, numbers, . - _"
             type="text"
           />
-          {state.fieldErrors?.name ? (
-            <small>{state.fieldErrors.name[0]}</small>
+          {state.fieldErrors?.nickname ? (
+            <small>{state.fieldErrors.nickname[0]}</small>
           ) : null}
         </label>
       ) : null}
@@ -68,7 +72,7 @@ export function AuthForm({ action, mode }: AuthFormProps) {
           autoComplete={isSignUp ? "new-password" : "current-password"}
           className="input"
           name="password"
-          placeholder="Minimum 8 characters"
+          placeholder="At least 8 characters"
           type="password"
         />
         {state.fieldErrors?.password ? (
@@ -85,11 +89,11 @@ export function AuthForm({ action, mode }: AuthFormProps) {
               ? "Creating..."
               : "Signing in..."
             : isSignUp
-              ? "Sign Up"
-              : "Log In"}
+              ? "Create account"
+              : "Sign in"}
         </button>
         <Link className="button button-ghost sm:min-w-40" href={isSignUp ? "/auth/sign-in" : "/auth/sign-up"}>
-          {isSignUp ? "I already have an account" : "Create an account"}
+          {isSignUp ? "I already have an account" : "Create account"}
         </Link>
       </div>
 

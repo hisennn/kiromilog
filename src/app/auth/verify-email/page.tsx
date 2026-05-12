@@ -47,15 +47,15 @@ export default async function VerifyEmailPage({
             {deliveryFailed ? (
               <div className="panel space-y-2">
                 <p className="text-sm text-accent">
-                  Your account was created, but the verification code was not sent on the
-                  first attempt. Use the button below to resend it safely.
+                  Your account was created, but the code was not sent on the first attempt.
+                  Use the button below to resend it.
                 </p>
               </div>
             ) : null}
             {verificationSent ? (
               <div className="panel space-y-2">
                 <p className="text-sm text-primary">
-                  We sent your verification code successfully.
+                  We sent your verification code.
                 </p>
               </div>
             ) : null}
@@ -68,11 +68,10 @@ export default async function VerifyEmailPage({
           <div className="panel space-y-3">
             <p className="eyebrow">Check your email</p>
             <h1 className="font-display text-4xl text-foreground">
-              Verify your account to continue.
+              Confirm your account to continue.
             </h1>
             <p className="max-w-xl text-sm leading-7 text-muted">
-              Sign in with the same account you created and we&apos;ll help you resend the
-              verification code if needed.
+              Sign in with the same account you created. If needed, we will resend the code.
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Link className="button button-primary sm:min-w-40" href="/auth/sign-in">

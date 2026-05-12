@@ -1,28 +1,94 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, count, eq, ilike, inArray, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
-import { favoriteAnime, userAnimeList, userMangaList } from "@/lib/db/schema";
+import { favoriteAnime, userAnimeList, userFollows, userMangaList, users } from "@/lib/db/schema";
 import { searchMedia } from "@/lib/jikan/client";
+import {
+  consumeRateLimit,
+  getClientIpFromRequest,
+  secondsUntilReset,
+} from "@/lib/rate-limit";
+import { navbarSearchSchema } from "@/lib/validation/media";
 import { getViewerProfile } from "@/lib/viewer-profile";
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const query = searchParams.get("q")?.trim() ?? "";
+async function searchUsers(query: string) {
+  const pattern = `%${query.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+  const rows = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      nickname: users.nickname,
+      avatarUrl: users.avatarUrl,
+      bio: users.bio,
+    })
+    .from(users)
+    .where(or(ilike(users.username, pattern), ilike(users.nickname, pattern)))
+    .limit(30);
 
-  if (query.length < 2) {
-    return NextResponse.json({ anime: [], manga: [] });
+  return Promise.all(
+    rows.map(async (user) => {
+      const [followers, following] = await Promise.all([
+        db
+          .select({ count: count() })
+          .from(userFollows)
+          .where(eq(userFollows.followingId, user.id)),
+        db
+          .select({ count: count() })
+          .from(userFollows)
+          .where(eq(userFollows.followerId, user.id)),
+      ]);
+
+      return {
+        ...user,
+        followers: followers[0]?.count ?? 0,
+        following: following[0]?.count ?? 0,
+      };
+    }),
+  );
+}
+
+export async function GET(request: Request) {
+  const ip = getClientIpFromRequest(request);
+  const rateLimit = consumeRateLimit({
+    key: `api:search:${ip}`,
+    limit: 30,
+    windowMs: 60 * 1000,
+  });
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Muitas buscas. Try again mais tarde." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(secondsUntilReset(rateLimit.resetAt)),
+        },
+      },
+    );
   }
+
+  const { searchParams } = new URL(request.url);
+  const parsedQuery = navbarSearchSchema.safeParse({ q: searchParams.get("q") ?? "" });
+
+  if (!parsedQuery.success || parsedQuery.data.q.length < 2) {
+    return NextResponse.json({ anime: [], manga: [], users: [] });
+  }
+
+  const query = parsedQuery.data.q;
 
   try {
     const viewer = await getViewerProfile();
     const includeAdultContent = viewer?.showAdultContent ?? false;
     const anime = await searchMedia(query, "anime", { includeAdultContent });
     await new Promise((resolve) => setTimeout(resolve, 350));
-    const manga = await searchMedia(query, "manga", { includeAdultContent });
+    const [manga, userResults] = await Promise.all([
+      searchMedia(query, "manga", { includeAdultContent }),
+      searchUsers(query),
+    ]);
 
     if (!viewer) {
-      return NextResponse.json({ anime, manga });
+      return NextResponse.json({ anime, manga, users: userResults });
     }
 
     const animeIds = anime.map((item) => item.malId);
@@ -86,8 +152,9 @@ export async function GET(request: Request) {
         ...item,
         libraryEntry: mangaEntryMap.get(item.malId) ?? null,
       })),
+      users: userResults,
     });
   } catch {
-    return NextResponse.json({ anime: [], manga: [] }, { status: 502 });
+    return NextResponse.json({ anime: [], manga: [], users: [] }, { status: 502 });
   }
 }

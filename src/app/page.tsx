@@ -20,45 +20,42 @@ export default async function Home() {
             Kiromilog
           </p>
           <h1 className="font-display text-3xl text-foreground sm:text-4xl">    
-            Anime and manga tracking with purpose, memory, and your own pace.
+            Kiromilog is your place for anime and manga.
           </h1>
           <p className="mt-2 max-w-2xl text-base text-muted">
-            List what you are watching, track progress without visual clutter,
-            and turn recent activity into a meaningful history.
+            Save your lists, find profiles, and follow what matters without clutter.
           </p>
         </div>
 
         <nav className="flex items-center gap-2 text-sm">
           <Link className="button button-ghost" href="/auth/sign-in">
-            Log In
+            Sign in
           </Link>
           <Link className="button button-primary" href="/auth/sign-up">
-            Sign Up
+            Create account
           </Link>
         </nav>
       </header>
 
       <section className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
         <article className="panel interactive animate-fade-in-up animate-delay-100">
-          <p className="eyebrow">Proposal</p>
+          <p className="eyebrow">Kiromilog</p>
           <div className="mt-3 space-y-3 text-sm text-muted">
             <p>
-              Kiromilog was born to be cleaner, more readable, and more
-              personal. No bloated dashboards or meaningless decorative boxes.
+              A simple way to save what you watch, what you read, and the people you want to follow.
             </p>
             <p>
-              The authentication, database, and cache foundations are ready. Now, the app enters
-              the login, profile tracking, and real search phase.
+              Profile, listas, follows e mensagens ficam no mesmo lugar.
             </p>
           </div>
         </article>
 
         <aside className="panel interactive animate-fade-in-up animate-delay-200">
-          <p className="eyebrow">First Release</p>
+          <p className="eyebrow">Comece</p>
           <div className="mt-3 space-y-2 text-sm text-muted">
-            <p>Email and password via Neon Auth</p>
-            <p>Profile synchronized on first access</p>
-            <p>Protected home ready to scale</p>
+            <p>Build your list.</p>
+            <p>Encontre pessoas.</p>
+            <p>Continue a conversa.</p>
           </div>
         </aside>
       </section>

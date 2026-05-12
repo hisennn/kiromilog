@@ -2,17 +2,26 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { eq, or } from "drizzle-orm";
 
 import {
   auth,
   getSession,
+  getSessionWithCookieMutation,
 } from "@/lib/auth/server";
+import { db } from "@/lib/db";
+import { users } from "@/lib/db/schema";
 import {
   getVerificationCooldownRemaining,
   PENDING_VERIFICATION_EMAIL_COOKIE,
   VERIFICATION_RESEND_COOKIE,
   VERIFICATION_RESEND_COOLDOWN_SECONDS,
 } from "@/lib/auth/verification";
+import {
+  consumeRateLimit,
+  getClientIpFromCurrentRequest,
+  secondsUntilReset,
+} from "@/lib/rate-limit";
 import type { AuthActionState } from "@/lib/validation/auth";
 import { signInSchema, signUpSchema } from "@/lib/validation/auth";
 
@@ -20,6 +29,10 @@ function readString(formData: FormData, key: string) {
   const value = formData.get(key);
 
   return typeof value === "string" ? value : "";
+}
+
+function normalizePublicNickname(input: string) {
+  return input.trim().toLowerCase();
 }
 
 type EmailOtpMethods = {
@@ -41,7 +54,9 @@ function getEmailOtpAuth() {
 
 async function getFreshSignedInSession() {
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const session = await getSession({ disableCookieCache: true });
+    const session = await getSessionWithCookieMutation({
+      disableCookieCache: false,
+    });
 
     if (session?.user) {
       return session;
@@ -51,6 +66,13 @@ async function getFreshSignedInSession() {
   }
 
   return null;
+}
+
+function isUniqueConstraintError(error: unknown, constraint: string) {
+  return (
+    error instanceof Error &&
+    (error.message.includes(constraint) || error.message.includes("duplicate key"))
+  );
 }
 
 async function setVerificationResendCookie() {
@@ -109,6 +131,26 @@ async function getVerificationCooldownState() {
   return getVerificationCooldownRemaining(lastSentAt);
 }
 
+async function checkAuthRateLimit(
+  action: string,
+  identity: string,
+  limit: number,
+  windowMs: number,
+) {
+  const ip = await getClientIpFromCurrentRequest();
+  const result = consumeRateLimit({
+    key: `auth:${action}:${ip}:${identity.toLowerCase()}`,
+    limit,
+    windowMs,
+  });
+
+  if (result.allowed) {
+    return null;
+  }
+
+  return secondsUntilReset(result.resetAt);
+}
+
 export async function signInAction(
   _state: AuthActionState,
   formData: FormData,
@@ -124,22 +166,39 @@ export async function signInAction(
     };
   }
 
-  const { error } = await auth.signIn.email({
+  const waitSeconds = await checkAuthRateLimit(
+    "sign-in",
+    parsed.data.email,
+    8,
+    60 * 1000,
+  );
+
+  if (waitSeconds) {
+    return {
+      error: `Too many attempts. Try again em ${waitSeconds}s.`,
+    };
+  }
+
+  const { data, error } = await auth.signIn.email({
     email: parsed.data.email,
     password: parsed.data.password,
   });
 
   if (error) {
     return {
-      error: "Email ou senha invalidos.",
+      error: "Invalid email or password.",
     };
   }
 
-  const session = await getFreshSignedInSession();
+  const session = data?.user
+    ? {
+        user: data.user,
+      }
+    : await getFreshSignedInSession();
 
   if (!session?.user) {
     return {
-      error: "Nao foi possivel iniciar a sessao agora.",
+      error: "Could not start your session right now.",
     };
   }
 
@@ -156,7 +215,7 @@ export async function signUpAction(
   formData: FormData,
 ): Promise<AuthActionState> {
   const parsed = signUpSchema.safeParse({
-    name: readString(formData, "name"),
+    nickname: readString(formData, "nickname"),
     email: readString(formData, "email"),
     password: readString(formData, "password"),
   });
@@ -167,16 +226,96 @@ export async function signUpAction(
     };
   }
 
-  const { error } = await auth.signUp.email({
-    name: parsed.data.name,
+  const waitSeconds = await checkAuthRateLimit(
+    "sign-up",
+    parsed.data.email,
+    4,
+    60 * 60 * 1000,
+  );
+
+  if (waitSeconds) {
+    return {
+      error: `Too many attempts. Try again em ${waitSeconds}s.`,
+    };
+  }
+
+  const normalizedNickname = normalizePublicNickname(parsed.data.nickname);
+  const [existingUser] = await db
+    .select({
+      email: users.email,
+      username: users.username,
+    })
+    .from(users)
+    .where(
+      or(
+        eq(users.username, normalizedNickname),
+        eq(users.email, parsed.data.email),
+      ),
+    )
+    .limit(1);
+
+  if (existingUser?.username === normalizedNickname) {
+    return {
+      fieldErrors: {
+        nickname: ["This nickname is already in use."],
+      },
+    };
+  }
+
+  if (existingUser?.email === parsed.data.email) {
+    return {
+      fieldErrors: {
+        email: ["This email is already registered."],
+      },
+    };
+  }
+
+  const { data, error } = await auth.signUp.email({
+    name: normalizedNickname,
     email: parsed.data.email,
     password: parsed.data.password,
   });
 
   if (error) {
     return {
-      error: "Nao foi possivel criar a conta com esses dados.",
+      error: "Could not create an account with those details.",
     };
+  }
+
+  if (!data?.user) {
+    return {
+      error: "Could not create your account right now.",
+    };
+  }
+
+  try {
+    await db.insert(users).values({
+      id: data.user.id,
+      email: data.user.email,
+      username: normalizedNickname,
+      nickname: normalizedNickname,
+      avatarUrl: data.user.image ?? null,
+      onboardingCompleted: false,
+      updatedAt: new Date(),
+    });
+  } catch (insertError) {
+    if (isUniqueConstraintError(insertError, "users_username_unique")) {
+      return {
+        fieldErrors: {
+          nickname: ["This nickname is already in use."],
+        },
+      };
+    }
+
+    if (isUniqueConstraintError(insertError, "users_email_unique")) {
+      return {
+        fieldErrors: {
+          email: ["This email is already registered."],
+        },
+      };
+    }
+
+    throw insertError;
   }
 
   await setPendingVerificationEmailCookie(parsed.data.email);
@@ -202,7 +341,21 @@ export async function resendVerificationEmailAction(
 
   if (!email) {
     return {
-      error: "Nao encontramos um email pendente de verificacao. Entre novamente para continuar.",
+      error: "We could not find a pending email. Sign in again to continue.",
+    };
+  }
+
+  const waitSeconds = await checkAuthRateLimit(
+    "resend-verification",
+    email,
+    3,
+    15 * 60 * 1000,
+  );
+
+  if (waitSeconds) {
+    return {
+      error: `Too many requests. Try again em ${waitSeconds}s.`,
+      cooldownSeconds: waitSeconds,
     };
   }
 
@@ -210,7 +363,7 @@ export async function resendVerificationEmailAction(
 
   if (cooldownSeconds > 0) {
     return {
-      error: `Espere ${cooldownSeconds}s antes de pedir outro codigo.`,
+      error: `Wait ${cooldownSeconds}s before requesting another code.`,
       cooldownSeconds,
     };
   }
@@ -222,7 +375,7 @@ export async function resendVerificationEmailAction(
 
   if (error) {
     return {
-      error: "Nao foi possivel reenviar o codigo agora. Tente novamente em instantes.",
+      error: "Could not resend the code right now. Try again shortly.",
     };
   }
 
@@ -230,7 +383,7 @@ export async function resendVerificationEmailAction(
   await setPendingVerificationEmailCookie(email);
 
   return {
-    success: "Enviamos um novo codigo de verificacao para o seu email.",
+    success: "We sent a new code to your email.",
     cooldownSeconds: VERIFICATION_RESEND_COOLDOWN_SECONDS,
   };
 }
@@ -252,7 +405,20 @@ export async function verifyEmailCodeAction(
 
   if (!email) {
     return {
-      error: "Nao encontramos um email pendente de verificacao. Entre novamente para continuar.",
+      error: "We could not find a pending email. Sign in again to continue.",
+    };
+  }
+
+  const waitSeconds = await checkAuthRateLimit(
+    "verify-email",
+    email,
+    10,
+    15 * 60 * 1000,
+  );
+
+  if (waitSeconds) {
+    return {
+      error: `Too many attempts. Try again em ${waitSeconds}s.`,
     };
   }
 
@@ -260,7 +426,7 @@ export async function verifyEmailCodeAction(
 
   if (!/^\d{6,8}$/.test(otp)) {
     return {
-      error: "Digite o codigo exatamente como ele chegou no email.",
+      error: "Enter the code exactly as it arrived in your email.",
     };
   }
 
@@ -271,13 +437,15 @@ export async function verifyEmailCodeAction(
 
   if (error) {
     return {
-      error: "Codigo invalido ou expirado. Tente novamente.",
+      error: "Invalid or expired code. Try again.",
     };
   }
 
   await clearVerificationCookies();
 
-  const freshSession = await getSession({ disableCookieCache: true });
+  const freshSession = await getSessionWithCookieMutation({
+    disableCookieCache: false,
+  });
 
   if (freshSession?.user?.emailVerified) {
     redirect("/home");

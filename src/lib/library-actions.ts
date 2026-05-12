@@ -4,7 +4,6 @@ import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/lib/auth/server";
 import { db } from "@/lib/db";
 import {
   activities,
@@ -16,16 +15,15 @@ import {
 } from "@/lib/db/schema";
 import { fetchFullMediaEntry, isCacheFresh } from "@/lib/jikan/client";
 import {
+  consumeRateLimit,
+  getClientIpFromCurrentRequest,
+} from "@/lib/rate-limit";
+import {
   updateAnimeEntrySchema,
   updateMangaEntrySchema,
 } from "@/lib/validation/media";
 import { AnimeCachePayload, MangaCachePayload } from "@/lib/media-payload";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
-
-export async function signOutAction() {
-  await auth.signOut();
-  redirect("/");
-}
 
 async function createStatusActivity(input: {
   actorId: string;
@@ -205,6 +203,17 @@ function invalidateLibraryViews(username: string, mediaType: "anime" | "manga", 
   revalidatePath(`/${mediaType}/${malId}`);
 }
 
+async function canMutateLibrary(userId: string, action: string) {
+  const ip = await getClientIpFromCurrentRequest();
+  const rateLimit = consumeRateLimit({
+    key: `library:${action}:${ip}:${userId}`,
+    limit: 90,
+    windowMs: 60 * 1000,
+  });
+
+  return rateLimit.allowed;
+}
+
 async function createFavoriteActivity(input: {
   actorId: string;
   malId: number;
@@ -253,10 +262,14 @@ async function normalizeFavoriteAnimePositions(
 }
 
 export async function saveAnimeEntryAction(formData: FormData) {
-  const profile = await ensureViewerProfile();
+  const profile = await ensureViewerProfile({ allowCookieMutation: true });
 
   if (!profile) {
     redirect("/auth/sign-in");
+  }
+
+  if (!(await canMutateLibrary(profile.id, "save-anime"))) {
+    return false;
   }
 
   const parsed = updateAnimeEntrySchema.safeParse({
@@ -285,6 +298,10 @@ export async function saveAnimeEntryAction(formData: FormData) {
     parsed.data.status === "completed" && animeEpisodeLimit !== null
       ? animeEpisodeLimit
       : Math.min(requestedEpisodes, animeEpisodeLimit ?? requestedEpisodes);
+  const animeStatus =
+    parsed.data.status === "plan_to_watch" && progressEpisodes > 0
+      ? "watching"
+      : parsed.data.status;
   const score = parsed.data.score !== undefined ? parsed.data.score : (existing?.score ?? null);
 
   const [entry] = await db
@@ -292,27 +309,27 @@ export async function saveAnimeEntryAction(formData: FormData) {
     .values({
       userId: profile.id,
       malId: parsed.data.malId,
-      status: parsed.data.status,
+      status: animeStatus,
       score: score,
       progressEpisodes: progressEpisodes,
       startedAt:
-        parsed.data.status === "watching" || parsed.data.status === "rewatching"
+        animeStatus === "watching" || animeStatus === "rewatching"
           ? existing?.startedAt ?? now
           : existing?.startedAt ?? null,
-      completedAt: parsed.data.status === "completed" ? existing?.completedAt ?? now : null,
+      completedAt: animeStatus === "completed" ? existing?.completedAt ?? now : null,
       updatedAt: now,
     })
     .onConflictDoUpdate({
       target: [userAnimeList.userId, userAnimeList.malId],
       set: {
-        status: parsed.data.status,
+        status: animeStatus,
         score: score,
         progressEpisodes: progressEpisodes,
         startedAt:
-          parsed.data.status === "watching" || parsed.data.status === "rewatching"
+          animeStatus === "watching" || animeStatus === "rewatching"
             ? existing?.startedAt ?? now
             : existing?.startedAt ?? null,
-        completedAt: parsed.data.status === "completed" ? existing?.completedAt ?? now : null,
+        completedAt: animeStatus === "completed" ? existing?.completedAt ?? now : null,
         updatedAt: now,
       },
     })
@@ -336,7 +353,7 @@ export async function saveAnimeEntryAction(formData: FormData) {
     });
   }
 
-  if (entry && parsed.data.status !== existing?.status) {
+  if (entry && animeStatus !== existing?.status) {
     await createStatusActivity({
       actorId: profile.id,
       mediaType: "anime",
@@ -356,10 +373,14 @@ export async function saveAnimeEntryAction(formData: FormData) {
 export async function toggleFavoriteAnimeAction(
   formData: FormData,
 ): Promise<{ ok: true; favorited: boolean } | { ok: false; reason: "limit" | "invalid" }> {
-  const profile = await ensureViewerProfile();
+  const profile = await ensureViewerProfile({ allowCookieMutation: true });
 
   if (!profile) {
     redirect("/auth/sign-in");
+  }
+
+  if (!(await canMutateLibrary(profile.id, "favorite-anime"))) {
+    return { ok: false as const, reason: "invalid" as const };
   }
 
   const malId = Number(formData.get("malId"));
@@ -426,10 +447,14 @@ export async function toggleFavoriteAnimeAction(
 }
 
 export async function saveMangaEntryAction(formData: FormData) {
-  const profile = await ensureViewerProfile();
+  const profile = await ensureViewerProfile({ allowCookieMutation: true });
 
   if (!profile) {
     redirect("/auth/sign-in");
+  }
+
+  if (!(await canMutateLibrary(profile.id, "save-manga"))) {
+    return false;
   }
 
   const parsed = updateMangaEntrySchema.safeParse({
@@ -465,6 +490,10 @@ export async function saveMangaEntryAction(formData: FormData) {
     parsed.data.status === "completed" && mangaVolumeLimit !== null
       ? mangaVolumeLimit
       : Math.min(requestedVolumes, mangaVolumeLimit ?? requestedVolumes);
+  const mangaStatus =
+    parsed.data.status === "plan_to_read" && (progressChapters > 0 || progressVolumes > 0)
+      ? "reading"
+      : parsed.data.status;
   const score = parsed.data.score !== undefined ? parsed.data.score : (existing?.score ?? null);
 
   const [entry] = await db
@@ -472,29 +501,29 @@ export async function saveMangaEntryAction(formData: FormData) {
     .values({
       userId: profile.id,
       malId: parsed.data.malId,
-      status: parsed.data.status,
+      status: mangaStatus,
       score: score,
       progressChapters: progressChapters,
       progressVolumes: progressVolumes,
       startedAt:
-        parsed.data.status === "reading" || parsed.data.status === "rereading"
+        mangaStatus === "reading" || mangaStatus === "rereading"
           ? existing?.startedAt ?? now
           : existing?.startedAt ?? null,
-      completedAt: parsed.data.status === "completed" ? existing?.completedAt ?? now : null,
+      completedAt: mangaStatus === "completed" ? existing?.completedAt ?? now : null,
       updatedAt: now,
     })
     .onConflictDoUpdate({
       target: [userMangaList.userId, userMangaList.malId],
       set: {
-        status: parsed.data.status,
+        status: mangaStatus,
         score: score,
         progressChapters: progressChapters,
         progressVolumes: progressVolumes,
         startedAt:
-          parsed.data.status === "reading" || parsed.data.status === "rereading"
+          mangaStatus === "reading" || mangaStatus === "rereading"
             ? existing?.startedAt ?? now
             : existing?.startedAt ?? null,
-        completedAt: parsed.data.status === "completed" ? existing?.completedAt ?? now : null,
+        completedAt: mangaStatus === "completed" ? existing?.completedAt ?? now : null,
         updatedAt: now,
       },
     })
@@ -518,7 +547,7 @@ export async function saveMangaEntryAction(formData: FormData) {
     });
   }
 
-  if (entry && parsed.data.status !== existing?.status) {
+  if (entry && mangaStatus !== existing?.status) {
     await createStatusActivity({
       actorId: profile.id,
       mediaType: "manga",
@@ -536,10 +565,14 @@ export async function saveMangaEntryAction(formData: FormData) {
 }
 
 export async function deleteLibraryEntryAction(formData: FormData) {
-  const profile = await ensureViewerProfile();
+  const profile = await ensureViewerProfile({ allowCookieMutation: true });
 
   if (!profile) {
     redirect("/auth/sign-in");
+  }
+
+  if (!(await canMutateLibrary(profile.id, "delete-entry"))) {
+    return;
   }
 
   const mediaType = formData.get("mediaType");
@@ -608,9 +641,5 @@ export async function getRecentLibrary(userId: string) {
     .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
     .slice(0, 6);
 }
-
-
-
-
 
 

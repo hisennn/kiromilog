@@ -133,6 +133,20 @@ function normalizeScore(val: number | string): number | "" {
   return val === "" ? "" : Number(val);
 }
 
+function normalizeScoreInput(value: string): number | "" {
+  if (value === "") {
+    return "";
+  }
+
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return "";
+  }
+
+  return Math.min(Math.max(Math.trunc(numericValue), 1), 10);
+}
+
 function clampProgressValue(value: number, max: number | null): number {
   if (!Number.isFinite(value)) {
     return 0;
@@ -173,7 +187,7 @@ export function TrackingModalFrame({
 }: TrackingModalFrameProps) {
   return (
     <div aria-modal="true" className="tracking-modal-layer" id={modalId} role="dialog">
-      <a aria-label="Close modal" className="tracking-modal-backdrop" href="#" />
+      <a aria-label="Fechar modal" className="tracking-modal-backdrop" href="#" />
       <div className="tracking-modal panel">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -183,14 +197,14 @@ export function TrackingModalFrame({
               </div>
             ) : null}
             <div>
-              <p className="eyebrow tracking-widest text-[10px] text-muted">Your tracking</p>
+              <p className="eyebrow tracking-widest text-[10px] text-muted">Your list</p>
               <h2 className="mt-1 font-display text-lg text-foreground/90 line-clamp-1">{title}</h2>
               {titleJapanese ? (
                 <p className="mt-0.5 text-xs text-muted/40 line-clamp-1">{titleJapanese}</p>
               ) : null}
             </div>
           </div>
-          <a aria-label="Close modal" className="modal-icon-button shrink-0" href="#">
+          <a aria-label="Fechar modal" className="modal-icon-button shrink-0" href="#">
             <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M18 6 6 18" />
               <path d="m6 6 12 12" />
@@ -246,7 +260,12 @@ function AnimeTrackingFormInner({
   };
 
   const handleProgressChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setProgressInput(sanitizeProgressInput(event.target.value, maxEpisodes));
+    const nextProgress = sanitizeProgressInput(event.target.value, maxEpisodes);
+    setProgressInput(nextProgress);
+
+    if (status === "plan_to_watch" && Number(nextProgress || 0) > 0) {
+      setStatus("watching");
+    }
   };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -277,7 +296,7 @@ function AnimeTrackingFormInner({
       setSavedScore(score);
       setSavedProgressInput(progressValueToInput(Number(normalizedProgress || 0), status, maxEpisodes));
       setSaveStatus("success");
-      toast("Entry saved successfully");
+      toast("Entry saved.");
       router.refresh();
       setTimeout(() => setSaveStatus("idle"), 3000);
     });
@@ -296,7 +315,7 @@ function AnimeTrackingFormInner({
 
       if (!result.ok) {
         if (result.reason === "limit") {
-          toast("You can only favorite up to 12 anime", "danger");
+          toast("You can favorite up to 12 anime.", "danger");
         }
 
         return;
@@ -304,7 +323,7 @@ function AnimeTrackingFormInner({
 
       setIsFavorite(result.favorited);
       toast(
-        result.favorited ? "Added to fav animes" : "Removed from fav animes",
+        result.favorited ? "Adicionado aos favoritos" : "Removed dos favoritos",
         result.favorited ? "success" : "danger",
       );
       router.refresh();
@@ -342,17 +361,17 @@ function AnimeTrackingFormInner({
         <span>Score</span>
         <input
           className="input h-11"
-          max={12}
+          max={10}
           min={1}
           name="score"
           type="number"
           value={score}
-          onChange={(event) => setScore(event.target.value === "" ? "" : Number(event.target.value))}
+          onChange={(event) => setScore(normalizeScoreInput(event.target.value))}
         />
       </label>
 
       <div className="mt-2 flex flex-col items-start justify-between gap-3 text-xs text-muted md:col-span-3 md:flex-row md:items-center">
-        <span>{maxEpisodes ? `Max episodes: ${maxEpisodes}` : "No confirmed total."}</span>
+        <span>{maxEpisodes ? `Max episodes: ${maxEpisodes}` : "Total not confirmed."}</span>
         <div className="flex w-full items-center justify-end gap-3 md:w-auto">
           <button
             type="button"
@@ -462,11 +481,21 @@ function MangaTrackingFormInner({
   };
 
   const handleChaptersChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setChaptersInput(sanitizeProgressInput(event.target.value, maxChapters));
+    const nextChapters = sanitizeProgressInput(event.target.value, maxChapters);
+    setChaptersInput(nextChapters);
+
+    if (status === "plan_to_read" && Number(nextChapters || 0) > 0) {
+      setStatus("reading");
+    }
   };
 
   const handleVolumesChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setVolumesInput(sanitizeProgressInput(event.target.value, maxVolumes));
+    const nextVolumes = sanitizeProgressInput(event.target.value, maxVolumes);
+    setVolumesInput(nextVolumes);
+
+    if (status === "plan_to_read" && Number(nextVolumes || 0) > 0) {
+      setStatus("reading");
+    }
   };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -505,7 +534,7 @@ function MangaTrackingFormInner({
       setSavedChaptersInput(progressValueToInput(Number(normalizedChapters || 0), status, maxChapters));
       setSavedVolumesInput(progressValueToInput(Number(normalizedVolumes || 0), status, maxVolumes));
       setSaveStatus("success");
-      toast("Entry saved successfully");
+      toast("Entry saved.");
       router.refresh();
       setTimeout(() => setSaveStatus("idle"), 3000);
     });
@@ -555,17 +584,17 @@ function MangaTrackingFormInner({
         <span>Score</span>
         <input
           className="input h-11"
-          max={12}
+          max={10}
           min={1}
           name="score"
           type="number"
           value={score}
-          onChange={(event) => setScore(event.target.value === "" ? "" : Number(event.target.value))}
+          onChange={(event) => setScore(normalizeScoreInput(event.target.value))}
         />
       </label>
 
       <div className="mt-2 flex flex-col items-start justify-between gap-3 text-xs text-muted md:col-span-2 md:flex-row md:items-center xl:col-span-4">
-        <span>{maxChapters ? `Max chapters: ${maxChapters}` : "No confirmed total chapters."}</span>
+        <span>{maxChapters ? `Max chapters: ${maxChapters}` : "Chapter total not confirmed."}</span>
         <div className="flex w-full items-center justify-end gap-3 md:w-auto">
           <button
             type="submit"
@@ -600,7 +629,7 @@ function MangaTrackingFormInner({
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
             <polyline points="22 4 12 14.01 9 11.01"/>
           </svg>
-          Entry saved successfully
+          Entry saved.
         </div>
       )}
     </form>

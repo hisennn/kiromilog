@@ -70,7 +70,7 @@ export function AvatarSettingsPanel({
       }
 
       handleFileChange(null);
-      toast("Avatar updated successfully.");
+      toast("Avatar atualizado.");
       router.refresh();
     });
   };
@@ -85,7 +85,7 @@ export function AvatarSettingsPanel({
       }
 
       handleFileChange(null);
-      toast("Avatar removed.");
+      toast("Avatar removido.");
       router.refresh();
     });
   };
@@ -119,7 +119,7 @@ export function AvatarSettingsPanel({
         )}
 
         <p className="text-sm leading-7 text-muted">
-          Accepted formats: JPG, PNG, WEBP. Max size: {AVATAR_MAX_UPLOAD_MB} MB.
+          Accepted formats: JPG, PNG, and WEBP. Max size: {AVATAR_MAX_UPLOAD_MB} MB.
         </p>
       </div>
 
@@ -127,7 +127,7 @@ export function AvatarSettingsPanel({
         <section className="panel animate-fade-in-up animate-delay-300 space-y-4">
           <div>
             <p className="eyebrow tracking-widest text-[10px] text-muted">Upload</p>
-            <h2 className="mt-1 font-display text-2xl text-foreground">Avatar settings</h2>
+            <h2 className="mt-1 font-display text-2xl text-foreground">Avatar</h2>
           </div>
 
           <div className="h-px w-full bg-line/70" />
@@ -146,7 +146,7 @@ export function AvatarSettingsPanel({
               className="input flex h-11 cursor-pointer items-center justify-between gap-3 px-3 text-sm text-muted transition-colors hover:border-line/80 hover:text-foreground"
             >
               <span className="truncate">
-                {selectedFile ? selectedFile.name : "Select a new avatar"}
+                {selectedFile ? selectedFile.name : "Selecione um novo avatar"}
               </span>
               <span className="text-xs uppercase tracking-[0.18em] text-muted/80">Browse</span>
             </label>
@@ -159,7 +159,7 @@ export function AvatarSettingsPanel({
               disabled={isBusy || !selectedFile}
               onClick={handleUpload}
             >
-              Upload photo
+              Send foto
             </button>
             <button
               type="button"
@@ -167,7 +167,7 @@ export function AvatarSettingsPanel({
               disabled={isBusy || (!avatarUrl && !selectedFile)}
               onClick={handleRemove}
             >
-              Remove photo
+              Remove foto
             </button>
           </div>
         </section>

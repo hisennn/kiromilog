@@ -18,7 +18,7 @@ import {
   TrackingModalFrame,
 } from "@/components/library/tracking-modal";
 
-type ProfileView = "timeline" | "anime" | "manga";
+type ProfileView = "timeline" | "anime" | "manga" | "followers" | "following";
 
 type ActivityItem = Parameters<typeof ActivityCard>[0]["activity"];
 
@@ -34,6 +34,14 @@ type LibraryEntry = {
   type: string | null;
   total: number | null;
   isFavorite?: boolean;
+  isExplicitBlocked?: boolean;
+};
+
+type ProfileConnection = {
+  id: string;
+  username: string;
+  nickname: string;
+  avatarUrl: string | null;
 };
 
 type ProfileContentProps = {
@@ -44,6 +52,7 @@ type ProfileContentProps = {
   feed: ActivityItem[];
   animeLibrary: LibraryEntry[];
   mangaLibrary: LibraryEntry[];
+  connections: ProfileConnection[];
 };
 
 const ANIME_STATUS_GROUPS = [
@@ -52,7 +61,7 @@ const ANIME_STATUS_GROUPS = [
   { value: "rewatching", label: "Rewatching" },
   { value: "paused", label: "Paused" },
   { value: "dropped", label: "Dropped" },
-  { value: "plan_to_watch", label: "Planning" },
+  { value: "plan_to_watch", label: "Planejado" },
 ] as const;
 
 const MANGA_STATUS_GROUPS = [
@@ -61,28 +70,28 @@ const MANGA_STATUS_GROUPS = [
   { value: "rereading", label: "Rereading" },
   { value: "paused", label: "Paused" },
   { value: "dropped", label: "Dropped" },
-  { value: "plan_to_read", label: "Planning" },
+  { value: "plan_to_read", label: "Planejado" },
 ] as const;
 
 function getLibraryEmptyStateCopy(
   activeView: "anime" | "manga",
   activeFilter: string,
-  statusGroups: readonly { value: string; label: string }[],
+  statusGrorps: readonly { value: string; label: string }[],
 ) {
   const mediaLabel = activeView === "anime" ? "anime" : "manga";
 
   if (activeFilter === "all") {
     return {
-      title: `No ${mediaLabel} registered yet`,
-      description: `This list is still empty.`,
+      title: `No ${mediaLabel} saved`,
+      description: "Esta lista ainda esta vazia.",
     };
   }
 
-  const activeGroup = statusGroups.find((group) => group.value === activeFilter);
-  const filterLabel = activeGroup?.label.toLowerCase() ?? "selected";
+  const activeGrorp = statusGrorps.find((group) => group.value === activeFilter);
+  const filterLabel = activeGrorp?.label.toLowerCase() ?? "selecionado";
 
   return {
-    title: `No ${mediaLabel} here yet`,
+    title: `No ${mediaLabel} here`,
     description: `There are no ${mediaLabel} entries in ${filterLabel}.`,
   };
 }
@@ -104,7 +113,64 @@ function ProfileEmptyState({
   );
 }
 
+function ProfileConnectionGrid({
+  connections,
+  activeView,
+}: {
+  connections: ProfileConnection[];
+  activeView: "followers" | "following";
+}) {
+  if (!connections.length) {
+    return (
+      <ProfileEmptyState
+        title={activeView === "followers" ? "No followers yet" : "Not following anyone yet"}
+        description={
+          activeView === "followers"
+            ? "Ninguem segue este perfil ainda."
+            : "This profile is not following anyone yet."
+        }
+      />
+    );
+  }
+
+  return (
+    <div className="profile-social-grid">
+      {connections.map((profile, index) => (
+        <Link
+          aria-label={`Abrir @${profile.username}`}
+          className="profile-person-card animate-fade-in-up"
+          data-title={`@${profile.username}`}
+          href={`/u/${profile.username}`}
+          key={profile.id}
+          style={{ animationDelay: `${(index + 3) * 50}ms` }}
+        >
+          <span className="profile-person-avatar">
+            {profile.avatarUrl ? (
+              <Image
+                alt=""
+                className="profile-person-image"
+                height={320}
+                quality={90}
+                sizes="(max-width: 640px) 45vw, (max-width: 1024px) 22vw, 160px"
+                src={profile.avatarUrl}
+                width={240}
+              />
+            ) : (
+              <span>{profile.username.slice(0, 1).toUpperCase()}</span>
+            )}
+          </span>
+          <span className="profile-person-name">@{profile.username}</span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 function formatProgress(entry: LibraryEntry) {
+  if (entry.isExplicitBlocked) {
+    return "-";
+  }
+
   if (entry.total !== null && entry.status === "completed") {
     return String(entry.total);
   }
@@ -132,10 +198,9 @@ function DeleteEntryDialog({
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
       <div className="panel w-full max-w-sm animate-fade-in-up">
-        <h3 className="mb-2 font-display text-xl text-foreground">Delete entry</h3>
+        <h3 className="mb-2 font-display text-xl text-foreground">Remove entry</h3>
         <p className="mb-6 text-sm text-muted">
-          Are you sure you want to remove <strong>{entry.title}</strong> from your list? This
-          cannot be undone.
+          Remove <strong>{entry.title}</strong> from your list? This cannot be undone.
         </p>
         <div className="flex items-center justify-end gap-3">
           <button
@@ -161,14 +226,14 @@ function DeleteEntryDialog({
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
-                <span className="text-sm font-medium">Deleted</span>
+                <span className="text-sm font-medium">Removed</span>
               </>
             ) : isDeleting ? (
-              <span className="inline-flex h-4 w-4 items-center justify-center" aria-label="Deleting...">
+              <span className="inline-flex h-4 w-4 items-center justify-center" aria-label="Removing...">
                 <span className="loading-spinner text-current" />
               </span>
             ) : (
-              "Delete"
+              "Remove"
             )}
           </button>
         </div>
@@ -197,7 +262,7 @@ function EditLibraryEntryForm({
       await deleteLibraryEntryAction(formData);
       router.refresh();
       setDeleted(true);
-      toast("Entry removed successfully", "danger");
+      toast("Entry removed.", "danger");
       setTimeout(() => {
         setDeleted(false);
         setShowConfirm(false);
@@ -234,7 +299,7 @@ function EditLibraryEntryForm({
       <div className="modal-danger-action">
         <button
           type="button"
-          aria-label="Delete entry"
+          aria-label="Remove entry"
           className="modal-icon-button modal-icon-button-danger"
           onClick={() => setShowConfirm(true)}
         >
@@ -273,6 +338,10 @@ function LibraryEntryRow({
   canEdit: boolean;
 }) {
   const [openKey, setOpenKey] = useState(0);
+  const entryHref = entry.isExplicitBlocked ? "/settings" : `/${activeView}/${entry.malId}`;
+  const imageClassName = `library-cover-image object-cover ${
+    entry.isExplicitBlocked ? "scale-110 blur-sm opacity-50" : ""
+  }`;
 
   return (
     <div>
@@ -283,13 +352,18 @@ function LibraryEntryRow({
               {entry.imageUrl ? (
                 <Image
                   alt={entry.title ?? `${activeView} entry`}
-                  className="library-cover-image object-cover"
+                  className={imageClassName}
                   fill
                   sizes="36px"
                   src={entry.imageUrl}
                 />
               ) : null}
-              {canEdit ? (
+              {entry.isExplicitBlocked ? (
+                <span className="absolute inset-0 grid place-items-center bg-black/35 text-[9px] font-bold uppercase tracking-[0.16em] text-white">
+                  +18
+                </span>
+              ) : null}
+              {canEdit && !entry.isExplicitBlocked ? (
                 <span aria-hidden="true" className="library-cover-overlay">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="1" />
@@ -298,9 +372,9 @@ function LibraryEntryRow({
                   </svg>
                 </span>
               ) : null}
-              {canEdit ? (
+              {canEdit && !entry.isExplicitBlocked ? (
                 <a
-                  aria-label={`Edit ${entry.title ?? `MAL ${entry.malId}`}`}
+                  aria-label={`Editar ${entry.title ?? `MAL ${entry.malId}`}`}
                   className="library-cover-button"
                   onClick={() => setOpenKey((k) => k + 1)}
                   href={`#${modalId}`}
@@ -310,18 +384,18 @@ function LibraryEntryRow({
           </div>
           <Link
             className="truncate text-sm text-foreground transition-colors hover:text-primary"
-            href={`/${activeView}/${entry.malId}`}
+            href={entryHref}
           >
             {entry.title ?? `MAL ${entry.malId}`}
           </Link>
         </div>
 
-        <div className="library-meta-cell">{entry.score ?? "-"}</div>
+        <div className="library-meta-cell">{entry.isExplicitBlocked ? "-" : entry.score ?? "-"}</div>
         <div className="library-meta-cell">{formatProgress(entry)}</div>
-        <div className="library-meta-cell">{entry.type ?? "-"}</div>
+        <div className="library-meta-cell">{entry.isExplicitBlocked ? "-" : entry.type ?? "-"}</div>
       </div>
 
-      {canEdit ? (
+      {canEdit && !entry.isExplicitBlocked ? (
         <TrackingModalFrame
           modalId={modalId}
           title={entry.title ?? `MAL ${entry.malId}`}
@@ -346,17 +420,18 @@ export function ProfileContent({
   feed,
   animeLibrary,
   mangaLibrary,
+  connections,
 }: ProfileContentProps) {
   const filterRef = useRef<HTMLDetailsElement>(null);
   const activeView = initialView;
   const activeFilter = initialFilter;
-  const statusGroups = activeView === "anime" ? ANIME_STATUS_GROUPS : MANGA_STATUS_GROUPS;
-  const library = activeView === "anime" ? animeLibrary : mangaLibrary;
+  const isLibraryView = activeView === "anime" || activeView === "manga";
+  const statusGrorps = activeView === "anime" ? ANIME_STATUS_GROUPS : MANGA_STATUS_GROUPS;
+  const library = activeView === "anime" ? animeLibrary : activeView === "manga" ? mangaLibrary : [];
   const visibleFeed = feed.filter((activity) => activity.title.trim().length > 0);
   const visibleEntries =
-    activeView === "timeline"
-      ? []
-      : library
+    isLibraryView
+      ? library
           .filter((entry) => activeFilter === "all" || entry.status === activeFilter)
           .sort((left, right) => {
             if (activeView !== "anime") {
@@ -371,7 +446,9 @@ export function ProfileContent({
             }
 
             return (left.title ?? "").localeCompare(right.title ?? "");
-          });
+          })
+      : library
+          .slice(0, 0);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -395,7 +472,7 @@ export function ProfileContent({
       params.set("view", view);
     }
 
-    if (view !== "timeline" && filter !== "all") {
+    if ((view === "anime" || view === "manga") && filter !== "all") {
       params.set("filter", filter);
     }
 
@@ -410,22 +487,32 @@ export function ProfileContent({
         <div className="profile-library-head">
           <p className="eyebrow">Library</p>
           <div className="profile-view-controls">
-            <nav className="search-toggle">
-              <Link className={`search-toggle-button ${activeView === "timeline" ? "search-toggle-button-active" : ""}`} href={getProfileHref("timeline")}>
-                Timeline
-              </Link>
-              <Link className={`search-toggle-button ${activeView === "anime" ? "search-toggle-button-active" : ""}`} href={getProfileHref("anime")}>
-                Anime list
-              </Link>
-              <Link className={`search-toggle-button ${activeView === "manga" ? "search-toggle-button-active" : ""}`} href={getProfileHref("manga")}>
-                Manga list
-              </Link>
+            <nav className="profile-toggle-groups">
+              <span className="search-toggle">
+                <Link className={`search-toggle-button ${activeView === "timeline" ? "search-toggle-button-active" : ""}`} href={getProfileHref("timeline")}>
+                  Activity
+                </Link>
+                <Link className={`search-toggle-button ${activeView === "anime" ? "search-toggle-button-active" : ""}`} href={getProfileHref("anime")}>
+                  Anime list
+                </Link>
+                <Link className={`search-toggle-button ${activeView === "manga" ? "search-toggle-button-active" : ""}`} href={getProfileHref("manga")}>
+                  Manga list
+                </Link>
+              </span>
+              <span className="search-toggle">
+                <Link className={`search-toggle-button ${activeView === "followers" ? "search-toggle-button-active" : ""}`} href={getProfileHref("followers")}>
+                  Followers
+                </Link>
+                <Link className={`search-toggle-button ${activeView === "following" ? "search-toggle-button-active" : ""}`} href={getProfileHref("following")}>
+                  Following
+                </Link>
+              </span>
             </nav>
           </div>
         </div>
 
         <div className="profile-filter-row">
-          {activeView !== "timeline" ? (
+          {activeView === "anime" || activeView === "manga" ? (
             <details className="profile-filter-dropdown" ref={filterRef}>
               <summary className="button button-ghost profile-filter-trigger flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -435,9 +522,9 @@ export function ProfileContent({
               </summary>
               <div className="profile-filter-menu panel">
                 <Link className={`profile-filter-link ${activeFilter === "all" ? "profile-filter-link-active" : ""}`} href={getProfileHref(activeView)}>
-                  All statuses
+                  All
                 </Link>
-                {statusGroups.map((group) => (
+                {statusGrorps.map((group) => (
                   <Link
                     className={`profile-filter-link ${activeFilter === group.value ? "profile-filter-link-active" : ""}`}
                     href={getProfileHref(activeView, group.value)}
@@ -465,13 +552,18 @@ export function ProfileContent({
           </div>
         ) : (
           <ProfileEmptyState
-            title="No timeline yet"
+            title="No activity yet"
             description="There is no public activity here yet."
           />
         )
+      ) : activeView === "followers" || activeView === "following" ? (
+        <ProfileConnectionGrid
+          activeView={activeView}
+          connections={connections}
+        />
       ) : visibleEntries.length ? (
         <div className="space-y-6 profile-library-stack">
-          {statusGroups.map((group) => {
+          {statusGrorps.map((group) => {
             const entries = visibleEntries.filter((entry) => entry.status === group.value);
 
             if (!entries.length) {
@@ -514,7 +606,7 @@ export function ProfileContent({
           {...getLibraryEmptyStateCopy(
             activeView,
             activeFilter,
-            statusGroups,
+            statusGrorps,
           )}
         />
       )}

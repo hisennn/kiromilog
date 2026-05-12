@@ -18,17 +18,17 @@ import { Toaster } from "@/components/app/toaster";
 
 export const metadata: Metadata = {
   title: "Kiromilog",
-  description: "Tracking de anime e manga com identidade propria.",
+  description: "Listas de anime e manga em um lugar simples.",
 };
 
-export default function RootLayout({
+export default function RootLayort({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
     <html
-      lang="pt-BR"
+      lang="en-US"
       className={`${display.variable} ${body.variable} antialiased`}
     >
       <body>

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { animeStatusValues, mangaStatusValues } from "@/lib/library-status";
 const nullableScore = z
-  .union([z.literal(""), z.coerce.number().int().min(1).max(12)])
+  .union([z.literal(""), z.coerce.number().int().min(1).max(10)])
   .transform((value) => (value === "" ? null : value));
 
 export const mediaSearchSchema = z.object({

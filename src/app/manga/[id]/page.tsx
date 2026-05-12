@@ -65,7 +65,7 @@ export default async function MangaDetailPage({ params }: MangaPageProps) {
 
   return (
     <main className="app-shell animate-fade-in-up">
-      <AppHeader avatarUrl={viewer.avatarUrl} nickname={viewer.nickname} username={viewer.username} />
+      <AppHeader avatarUrl={viewer.avatarUrl} nickname={viewer.nickname} username={viewer.username} viewerId={viewer.id} />
 
       <section className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)]">
         <div className="space-y-4 animate-fade-in-up animate-delay-100">
@@ -88,19 +88,19 @@ export default async function MangaDetailPage({ params }: MangaPageProps) {
           </div>
 
           <div className="panel space-y-3 text-sm">
-            <div className="fact-row"><span>formato</span><strong className="uppercase tracking-wide text-xs">manga</strong></div>
+            <div className="fact-row"><span>format</span><strong className="uppercase tracking-wide text-xs">manga</strong></div>
             <div className="fact-row"><span>status</span><strong>{payload.status ?? "-"}</strong></div>
-            <div className="fact-row"><span>capítulos</span><strong>{payload.chapters ?? "-"}</strong></div>
+            <div className="fact-row"><span>chapters</span><strong>{payload.chapters ?? "-"}</strong></div>
             <div className="fact-row"><span>volumes</span><strong>{payload.volumes ?? "-"}</strong></div>
-            <div className="fact-row"><span>origem</span><strong>{payload.source ?? "-"}</strong></div>
-            <div className="fact-row"><span>início</span><strong>{payload.published?.prop?.from?.year ?? "-"}</strong></div>
+            <div className="fact-row"><span>source</span><strong>{payload.source ?? "-"}</strong></div>
+            <div className="fact-row"><span>start</span><strong>{payload.published?.prop?.from?.year ?? "-"}</strong></div>
           </div>
 
           <div className="panel space-y-3">
              <p className="eyebrow tracking-widest text-[10px]">Credits</p>
             <div className="space-y-2 text-sm text-muted">
-              <p><span className="text-foreground">Authors:</span> {(payload.authors ?? []).map((author) => `${author.name}${author.type ? ` (${author.type})` : ""}`).join(", ") || "Not listed."}</p>
-              <p><span className="text-foreground">Serialization:</span> {(payload.serializations ?? []).map((entryItem) => entryItem.name).join(", ") || "Not listed."}</p>
+              <p><span className="text-foreground">Authors:</span> {(payload.authors ?? []).map((author) => `${author.name}${author.type ? ` (${author.type})` : ""}`).join(", ") || "Not listed"}</p>
+              <p><span className="text-foreground">Publishing:</span> {(payload.serializations ?? []).map((entryItem) => entryItem.name).join(", ") || "Not listed"}</p>
             </div>
           </div>
 
@@ -127,7 +127,7 @@ export default async function MangaDetailPage({ params }: MangaPageProps) {
                 <div className="shrink-0 flex flex-col items-center justify-center border border-line bg-surface-strong w-24 h-24">
                   <span className="text-xs uppercase tracking-widest text-muted/60 mb-1">Score</span>
                   <strong className="font-display text-4xl text-foreground leading-none">{payload.score}</strong>
-                  <span className="text-[10px] text-muted/40 mt-1">{payload.scored_by?.toLocaleString("pt-BR")} users</span>
+                  <span className="text-[10px] text-muted/40 mt-1">{payload.scored_by?.toLocaleString("en-US")} users</span>
                 </div>
               ) : null}
             </div>
@@ -135,7 +135,7 @@ export default async function MangaDetailPage({ params }: MangaPageProps) {
 
           <section className="animate-fade-in-up animate-delay-300">
             <p className="text-base leading-relaxed text-muted/90 max-w-4xl">
-              {media.synopsis || "No synopsis available on Jikan."}
+              {media.synopsis || "No synopsis on Jikan."}
             </p>
           </section>
         </div>

@@ -59,7 +59,7 @@ export function SaveButton({
   return (
       <div className="flex items-center justify-end gap-3 w-full md:w-auto">
       {showSuccess && !isPending && (
-        <span className="text-green-400 font-medium text-xs animate-fade-in-up whitespace-nowrap">Successfully saved!</span>
+        <span className="text-green-400 font-medium text-xs animate-fade-in-up whitespace-nowrap">Saved.</span>
       )}
       {isPending && (
         <span className="inline-flex items-center justify-center h-4 w-4" aria-label="Saving...">
@@ -102,7 +102,7 @@ export function TrackForm({
   const [isSaving, startSavingTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
   const baselineRef = useRef(createSnapshotFromValues(defaultValues));
-  const initialBaselineRef = useRef(createSnapshotFromValues(defaultValues));
+  const initialStacklineRef = useRef(createSnapshotFromValues(defaultValues));
 
   const defaultValuesStr = JSON.stringify(defaultValues);
 
@@ -122,19 +122,19 @@ export function TrackForm({
   useEffect(() => {
     const newSnapshot = createSnapshotFromValues(JSON.parse(defaultValuesStr));
     baselineRef.current = newSnapshot;
-    initialBaselineRef.current = newSnapshot;
+    initialStacklineRef.current = newSnapshot;
     if (formRef.current) {
       applySnapshotToForm(formRef.current, newSnapshot);
     }
     syncDirtyState();
   }, [defaultValuesStr, syncDirtyState]);
 
-  const restoreBaseline = useCallback(
-    (nextBaseline: TrackFormSnapshot, nextCanSubmitPristine: boolean) => {
-      baselineRef.current = nextBaseline;
+  const restoreStackline = useCallback(
+    (nextStackline: TrackFormSnapshot, nextCanSubmitPristine: boolean) => {
+      baselineRef.current = nextStackline;
 
       if (formRef.current) {
-        applySnapshotToForm(formRef.current, nextBaseline);
+        applySnapshotToForm(formRef.current, nextStackline);
       }
 
       setIsDirty(false);
@@ -174,12 +174,12 @@ export function TrackForm({
           return;
         }
 
-        restoreBaseline(currentSnapshot, false);
+        restoreStackline(currentSnapshot, false);
         setShowSuccess(true);
         setTimeout(() => setShowSuccess(false), 3000);
       });
     },
-    [action, canSubmitPristine, isSaving, restoreBaseline, syncDirtyState],
+    [action, canSubmitPristine, isSaving, restoreStackline, syncDirtyState],
   );
 
   useEffect(() => {
@@ -190,17 +190,17 @@ export function TrackForm({
 
       if (!isOpen) {
         setShowSuccess(false);
-        restoreBaseline(
+        restoreStackline(
           baselineRef.current,
           allowPristineSubmit &&
-            snapshotsMatch(baselineRef.current, initialBaselineRef.current),
+            snapshotsMatch(baselineRef.current, initialStacklineRef.current),
         );
       }
     };
 
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
-  }, [allowPristineSubmit, modalId, restoreBaseline]);
+  }, [allowPristineSubmit, modalId, restoreStackline]);
 
   const isActuallySaving = isSaving;
 

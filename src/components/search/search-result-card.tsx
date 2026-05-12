@@ -38,6 +38,7 @@ export function SearchResultCard({ item }: SearchResultCardProps) {
   const isAnime = item.mediaType === "anime";
   const modalId = `tracking-${item.mediaType}-${item.malId}`;
   const hasExistingEntry = item.libraryEntry !== null;
+  const trackedTextClass = hasExistingEntry ? "search-result-tracked-copy" : "";
 
   return (
     <>
@@ -55,12 +56,12 @@ export function SearchResultCard({ item }: SearchResultCardProps) {
         <div className="search-result-copy relative group-focus-within:z-50">
           <div className="space-y-2">
             <Link
-              className="block font-display text-2xl leading-tight text-foreground transition-colors hover:text-primary"
+              className={`block font-display text-2xl leading-tight text-foreground transition-colors hover:text-primary ${trackedTextClass}`}
               href={`/${item.mediaType}/${item.malId}`}
             >
               {item.title}
             </Link>
-            <p className="search-score-row">
+            <p className={`search-score-row ${trackedTextClass}`}>
               <span aria-hidden="true" className="search-score-star">*</span>
               <span>{item.score ? item.score.toFixed(2) : "No score"}</span>
             </p>

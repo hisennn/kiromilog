@@ -77,17 +77,17 @@ export function QuickTrackingDropdown({
       setOptimisticHasEntry(true);
 
       const label = options.find((option) => option.value === status)?.label || status;
-      toast(`Added to ${label}`);
+      toast(`Adicionado em ${label}`);
       router.refresh();
     });
   };
 
   const getStatusLabel = () => {
     if (!optimisticHasEntry || !optimisticStatus) {
-      return "Add to list";
+      return "Add";
     }
 
-    return options.find((option) => option.value === optimisticStatus)?.label || "Add to list";
+    return options.find((option) => option.value === optimisticStatus)?.label || "Add";
   };
 
   const labelClassName = "block truncate text-sm leading-[1.2] font-medium";
@@ -101,7 +101,7 @@ export function QuickTrackingDropdown({
   );
 
   const primaryActionClass =
-    "flex h-11 flex-1 min-w-0 cursor-pointer items-center justify-center px-4 whitespace-nowrap font-sans text-sm leading-[1.2] font-medium text-foreground transition-colors hover:bg-white/5";
+    "flex h-9 flex-1 min-w-0 cursor-pointer items-center justify-center px-3 whitespace-nowrap font-sans text-sm leading-[1.2] font-medium text-foreground transition-colors hover:bg-white/5";
   const widthClass = className || "w-[172px]";
 
   return (
@@ -126,8 +126,8 @@ export function QuickTrackingDropdown({
         <button
           type="button"
           onClick={() => setIsOpen((open) => !open)}
-        className="flex h-11 shrink-0 items-center justify-center px-2.5 text-muted transition-colors hover:bg-white/5 hover:text-foreground"
-        aria-label="More options"
+        className="flex h-9 shrink-0 items-center justify-center px-2.5 text-muted transition-colors hover:bg-white/5 hover:text-foreground"
+        aria-label="Mais opcoes"
         disabled={isPending}
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}>
@@ -143,7 +143,7 @@ export function QuickTrackingDropdown({
                 key={option.value}
                 type="button"
                 onClick={() => handleStatusSelect(option.value)}
-                className={`flex min-h-11 w-full cursor-pointer items-center rounded-sm px-3 py-2 text-left font-sans text-sm leading-[1.2] font-medium transition-colors hover:bg-white/10 hover:text-white ${
+                className={`flex min-h-9 w-full cursor-pointer items-center rounded-sm px-3 py-1.5 text-left font-sans text-sm leading-[1.2] font-medium transition-colors hover:bg-white/10 hover:text-white ${
                   optimisticStatus === option.value ? "bg-white/10 text-white" : "text-foreground"
                 }`}
                 disabled={isPending}
@@ -160,7 +160,7 @@ export function QuickTrackingDropdown({
             onClick={() => setIsOpen(false)}
             className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-sm px-3 py-2 text-left font-sans text-sm font-medium text-muted/70 transition-colors hover:bg-white/10 hover:text-white"
           >
-            Open Editor
+            Editar
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-70">
               <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
               <path d="m15 5 4 4"/>

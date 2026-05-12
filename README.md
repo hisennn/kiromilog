@@ -1,6 +1,6 @@
-# Revinime
+# Kiromilog
 
-Anime and manga tracking app built with Next.js App Router, Neon Auth, Drizzle, and Jikan-backed media data.
+Anime and manga tracking app built with Next.js, Neon Auth, Drizzle, and Jikan data.
 
 ## Scripts
 
@@ -15,7 +15,7 @@ npm run db:push
 
 ## Environment
 
-Create `.env.local` with the values required by the integrations referenced in `src/lib/env.ts`.
+Crie `.env.local` com os valores usados em `src/lib/env.ts`.
 
 ## Stack
 

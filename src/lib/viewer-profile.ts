@@ -18,11 +18,12 @@ type ViewerProfileSession = {
 function normalizeUsername(input: string) {
   const normalized = input
     .normalize("NFKD")
-    .replace(/[^\w\s-]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9_.-]/g, "")
     .toLowerCase()
-    .replace(/[\s-]+/g, "_")
+    .replace(/[.-]{2,}/g, "_")
     .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "")
+    .replace(/^[._-]+|[._-]+$/g, "")
     .slice(0, 30);
 
   if (normalized.length >= 3) {
@@ -77,7 +78,7 @@ async function syncViewerProfile(session: ViewerProfileSession) {
     session.user.email.split("@")[0] ||
     session.user.id;
   const username = await findAvailableUsername(nameSeed);
-  const nickname = (session.user.name?.trim() || username).slice(0, 50);
+  const nickname = username;
 
   const [created] = await db
     .insert(users)
@@ -119,8 +120,8 @@ export async function getViewerProfile() {
   });
 }
 
-export async function ensureViewerProfile() {
-  const session = await requireVerifiedSession();
+export async function ensureViewerProfile(options?: { allowCookieMutation?: boolean }) {
+  const session = await requireVerifiedSession(options);
 
   return syncViewerProfile({
     user: {

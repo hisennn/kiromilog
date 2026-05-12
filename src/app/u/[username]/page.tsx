@@ -4,10 +4,19 @@ import { notFound, redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/app/app-header";
 import { ProfileContent } from "@/components/profile/profile-content";
+import { ProfileSocialActions } from "@/components/profile/profile-social-actions";
 
-import { isExplicitMediaPayload } from "@/lib/content-preferences";
-import { getProfileByUsername, getProfileFavoriteAnime, getProfileFeed, getProfileLibrary, getProfileStats } from "@/lib/feed";
+import {
+  getProfileByUsername,
+  getProfileConnections,
+  getProfileFavoriteAnime,
+  getProfileFeed,
+  getProfileLibrary,
+  getProfileStats,
+  isLibraryEntryExplicit,
+} from "@/lib/feed";
 import { AnimeCachePayload, MangaCachePayload } from "@/lib/media-payload";
+import { getFollowState } from "@/lib/social-actions";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 type ProfilePageProps = {
@@ -20,10 +29,15 @@ type ProfilePageProps = {
   }>;
 };
 
-type ProfileView = "timeline" | "anime" | "manga";
+type ProfileView = "timeline" | "anime" | "manga" | "followers" | "following";
 
 function getProfileView(input?: string): ProfileView {
-  if (input === "anime" || input === "manga") {
+  if (
+    input === "anime" ||
+    input === "manga" ||
+    input === "followers" ||
+    input === "following"
+  ) {
     return input;
   }
 
@@ -85,68 +99,105 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
     notFound();
   }
 
-  const [feed, stats, animeLibrary, mangaLibrary, favoriteAnime] = await Promise.all([
-    getProfileFeed(profile.id, { includeAdultContent }),
+  const [
+    feed,
+    stats,
+    animeLibrary,
+    mangaLibrary,
+    favoriteAnime,
+    followState,
+    connections,
+  ] = await Promise.all([
+    getProfileFeed(profile.id, { includeAdultContent, viewerId: viewer.id }),
     getProfileStats(profile.id),
     getProfileLibrary(profile.id, "anime"),
     getProfileLibrary(profile.id, "manga"),
     getProfileFavoriteAnime(profile.id, 12, { includeAdultContent }),
+    getFollowState(viewer.id, profile.id),
+    activeView === "followers" || activeView === "following"
+      ? getProfileConnections(profile.id, activeView)
+      : Promise.resolve([]),
   ]);
   const canEditProfile = viewer.id === profile.id;
-  const visibleAnimeLibrary = includeAdultContent
+  const visibleAnimeLibrary = animeLibrary;
+  const visibleMangaLibrary = mangaLibrary;
+  const unblockedAnimeLibrary = includeAdultContent
     ? animeLibrary
-    : animeLibrary.filter((entry) => !isExplicitMediaPayload(entry.payload, "anime"));
-  const visibleMangaLibrary = includeAdultContent
+    : animeLibrary.filter((entry) => !isLibraryEntryExplicit(entry, "anime"));
+  const unblockedMangaLibrary = includeAdultContent
     ? mangaLibrary
-    : mangaLibrary.filter((entry) => !isExplicitMediaPayload(entry.payload, "manga"));
-  const animeAverageScore = getAverageScore(visibleAnimeLibrary);
-  const mangaAverageScore = getAverageScore(visibleMangaLibrary);
+    : mangaLibrary.filter((entry) => !isLibraryEntryExplicit(entry, "manga"));
+  const animeAverageScore = getAverageScore(unblockedAnimeLibrary);
+  const mangaAverageScore = getAverageScore(unblockedMangaLibrary);
 
-  const totalEpisodesWatched = visibleAnimeLibrary.reduce(
+  const totalEpisodesWatched = unblockedAnimeLibrary.reduce(
     (sum, entry) => sum + getCompletedAnimeProgress(entry),
     0,
   );
 
-  const totalChaptersRead = visibleMangaLibrary.reduce(
+  const totalChaptersRead = unblockedMangaLibrary.reduce(
     (sum, entry) => sum + getCompletedMangaProgress(entry),
     0,
   );
-  const mappedAnimeLibrary = visibleAnimeLibrary.map((entry) => ({
-    id: entry.id,
-    status: entry.status,
-    malId: entry.malId,
-    title: entry.title,
-    imageUrl: entry.imageUrl,
-    score: entry.score,
-    progress: entry.progress,
-    type: (entry.payload as AnimeCachePayload | null)?.type ?? null,
-    total: (entry.payload as AnimeCachePayload | null)?.episodes ?? null,
-    isFavorite: "favoriteMalId" in entry && entry.favoriteMalId !== null,
-  }));
+  const mappedAnimeLibrary = visibleAnimeLibrary.map((entry) => {
+    const isExplicitBlocked =
+      !includeAdultContent && isLibraryEntryExplicit(entry, "anime");
 
-  const mappedMangaLibrary = visibleMangaLibrary.map((entry) => ({
-    id: entry.id,
-    status: entry.status,
-    malId: entry.malId,
-    title: entry.title,
-    imageUrl: entry.imageUrl,
-    score: entry.score,
-    progress: entry.progress,
-    progressVolumes: (entry as { progressVolumes: number }).progressVolumes,
-    type: (entry.payload as MangaCachePayload | null)?.type ?? null,
-    total: (entry.payload as MangaCachePayload | null)?.chapters ?? null,
-  }));
+    return {
+      isExplicitBlocked,
+      id: entry.id,
+      status: entry.status,
+      malId: entry.malId,
+      title: isExplicitBlocked ? "NSFW content" : entry.title,
+      imageUrl: entry.imageUrl,
+      score: entry.score,
+      progress: entry.progress,
+      type: (entry.payload as AnimeCachePayload | null)?.type ?? null,
+      total: (entry.payload as AnimeCachePayload | null)?.episodes ?? null,
+      isFavorite: "favoriteMalId" in entry && entry.favoriteMalId !== null,
+    };
+  });
+
+  const mappedMangaLibrary = visibleMangaLibrary.map((entry) => {
+    const isExplicitBlocked =
+      !includeAdultContent && isLibraryEntryExplicit(entry, "manga");
+
+    return {
+      isExplicitBlocked,
+      id: entry.id,
+      status: entry.status,
+      malId: entry.malId,
+      title: isExplicitBlocked ? "NSFW content" : entry.title,
+      imageUrl: entry.imageUrl,
+      score: entry.score,
+      progress: entry.progress,
+      progressVolumes: (entry as { progressVolumes: number }).progressVolumes,
+      type: (entry.payload as MangaCachePayload | null)?.type ?? null,
+      total: (entry.payload as MangaCachePayload | null)?.chapters ?? null,
+    };
+  });
+  const mappedFavoriteAnime = favoriteAnime.map((fav) => {
+    const isExplicitBlocked =
+      !includeAdultContent && isLibraryEntryExplicit(fav, "anime");
+
+    return {
+      ...fav,
+      isExplicitBlocked,
+      title: isExplicitBlocked ? "NSFW content" : fav.title,
+      href: isExplicitBlocked ? "/settings" : `/anime/${fav.malId}`,
+    };
+  });
   return (
     <main className="app-shell">
       <AppHeader
         avatarUrl={viewer.avatarUrl}
-        current="profile"
+        current={viewer.id === profile.id ? "profile" : null}
         nickname={viewer.nickname}
         username={viewer.username}
+        viewerId={viewer.id}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mt-4">
-        {/* Sidebar */}
         <aside className="lg:col-span-1 space-y-8 pr-4">
           <div className="flex flex-col animate-fade-in-up">
             {viewer.username === profile.username ? (
@@ -178,17 +229,35 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
             <h1 className="font-display text-3xl font-medium text-foreground tracking-tight mb-2">@{profile.username}</h1>
             
             <div className="flex gap-8 mt-2 pb-6 border-b border-line/60">
-              <div className="flex flex-col">
+              <Link
+                className={`profile-stat-link flex flex-col ${
+                  activeView === "followers" ? "profile-stat-link-active" : ""
+                }`}
+                href={`/u/${profile.username}?view=followers`}
+              >
                 <div className="font-semibold text-foreground text-xl leading-none">{stats.followers}</div>
                 <div className="text-[11px] font-semibold uppercase tracking-widest text-muted/90 mt-2">followers</div>
-              </div>
-              <div className="flex flex-col">
+              </Link>
+              <Link
+                className={`profile-stat-link flex flex-col ${
+                  activeView === "following" ? "profile-stat-link-active" : ""
+                }`}
+                href={`/u/${profile.username}?view=following`}
+              >
                 <div className="font-semibold text-foreground text-xl leading-none">{stats.following}</div>
                 <div className="text-[11px] font-semibold uppercase tracking-widest text-muted/90 mt-2">following</div>
-              </div>
+              </Link>
             </div>
 
             {profile.bio && <p className="text-sm text-foreground mt-6 max-w-[200px] leading-relaxed">{profile.bio}</p>}
+            {!followState.isSelf ? (
+              <ProfileSocialActions
+                isFollowedBy={followState.isFollowedBy}
+                isFollowing={followState.isFollowing}
+                isMutual={followState.isMutual}
+                username={profile.username}
+              />
+            ) : null}
           </div>
 
           <div className="animate-fade-in-up animate-delay-100 space-y-8">
@@ -207,7 +276,7 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
                   <span className="font-semibold text-[15px] text-foreground">{totalEpisodesWatched}</span>
                 </div>
                 <div className="flex justify-between items-baseline border-b border-line/40 pb-1.5">
-                  <span className="text-muted/90 font-semibold tracking-widest uppercase text-[11px]">Mean Score</span>
+                  <span className="text-muted/90 font-semibold tracking-widest uppercase text-[11px]">Mean score</span>
                   <span className="font-semibold text-[15px] text-primary">{animeAverageScore ?? "-"}</span>
                 </div>
               </div>
@@ -228,29 +297,42 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
                   <span className="font-semibold text-[15px] text-foreground">{totalChaptersRead}</span>
                 </div>
                 <div className="flex justify-between items-baseline border-b border-line/40 pb-1.5">
-                  <span className="text-muted/90 font-semibold tracking-widest uppercase text-[11px]">Mean Score</span>
+                  <span className="text-muted/90 font-semibold tracking-widest uppercase text-[11px]">Mean score</span>
                   <span className="font-semibold text-[15px] text-primary">{mangaAverageScore ?? "-"}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {favoriteAnime.length > 0 && (
+          {mappedFavoriteAnime.length > 0 && (
             <div className="animate-fade-in-up animate-delay-200 pt-2">
               <h2 className="font-display text-lg text-foreground mb-3">Fav animes</h2>
               <div className="grid grid-cols-3 gap-1.5">
-                {favoriteAnime.map((fav) => (
+                {mappedFavoriteAnime.map((fav) => (
                   <Link
                     key={fav.id}
-                    href={`/anime/${fav.malId}`}
+                    href={fav.href}
                     className="fav-card relative aspect-[3/4] w-full bg-surface-strong transition-opacity hover:opacity-80"
                     aria-label={fav.title ?? `Anime ${fav.malId}`}
                     data-title={fav.title ?? `Anime ${fav.malId}`}
                   >
                     <span className="absolute inset-0 overflow-hidden">
                     {fav.imageUrl && (
-                      <Image alt={fav.title ?? ""} className="object-cover" fill sizes="80px" src={fav.imageUrl} />
+                      <Image
+                        alt={fav.title ?? ""}
+                        className={`object-cover ${
+                          fav.isExplicitBlocked ? "scale-110 blur-sm opacity-50" : ""
+                        }`}
+                        fill
+                        sizes="80px"
+                        src={fav.imageUrl}
+                      />
                     )}
+                    {fav.isExplicitBlocked ? (
+                      <span className="absolute inset-0 grid place-items-center bg-black/35 text-[10px] font-bold uppercase tracking-[0.2em] text-white">
+                        +18
+                      </span>
+                    ) : null}
                     </span>
                   </Link>
                 ))}
@@ -259,7 +341,6 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
           )}
         </aside>
 
-        {/* Main Content */}
         <section className="lg:col-span-3 space-y-6">
           <ProfileContent
             animeLibrary={mappedAnimeLibrary}
@@ -267,6 +348,7 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
             feed={feed}
             initialFilter={activeFilter}
             initialView={activeView}
+            connections={connections}
             mangaLibrary={mappedMangaLibrary}
             username={profile.username}
           />

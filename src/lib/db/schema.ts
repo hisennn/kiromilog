@@ -80,6 +80,57 @@ export const userFollows = pgTable(
   ],
 );
 
+export const chatThreads = pgTable(
+  "chat_threads",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    participantAId: text("participant_a_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    participantBId: text("participant_b_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lastMessageAt: timestamp("last_message_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("chat_threads_participants_unique").on(
+      table.participantAId,
+      table.participantBId,
+    ),
+    index("chat_threads_participant_a_idx").on(table.participantAId),
+    index("chat_threads_participant_b_idx").on(table.participantBId),
+    index("chat_threads_last_message_at_idx").on(table.lastMessageAt),
+  ],
+);
+
+export const chatMessages = pgTable(
+  "chat_messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => chatThreads.id, { onDelete: "cascade" }),
+    senderId: text("sender_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    body: varchar("body", { length: 2000 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("chat_messages_thread_created_at_idx").on(
+      table.threadId,
+      table.createdAt,
+    ),
+    index("chat_messages_sender_idx").on(table.senderId),
+  ],
+);
+
 export const animeCache = pgTable(
   "anime_cache",
   {
@@ -297,6 +348,58 @@ export const activityLikes = pgTable(
       name: "activity_likes_pk",
     }),
     index("activity_likes_user_idx").on(table.userId),
+  ],
+);
+
+export const activityLikeNotifications = pgTable(
+  "activity_like_notifications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    recipientId: text("recipient_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    actorId: text("actor_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    latestActivityId: uuid("latest_activity_id").references(() => activities.id, {
+      onDelete: "set null",
+    }),
+    activityCount: integer("activity_count").default(0).notNull(),
+    readAt: timestamp("read_at", { withTimezone: true, mode: "date" }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("activity_like_notifications_recipient_actor_unique").on(
+      table.recipientId,
+      table.actorId,
+    ),
+    index("activity_like_notifications_recipient_read_idx").on(
+      table.recipientId,
+      table.readAt,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export const activityLikeNotificationItems = pgTable(
+  "activity_like_notification_items",
+  {
+    notificationId: uuid("notification_id")
+      .notNull()
+      .references(() => activityLikeNotifications.id, { onDelete: "cascade" }),
+    activityId: uuid("activity_id")
+      .notNull()
+      .references(() => activities.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.notificationId, table.activityId],
+      name: "activity_like_notification_items_pk",
+    }),
+    index("activity_like_notification_items_activity_idx").on(table.activityId),
   ],
 );
 
