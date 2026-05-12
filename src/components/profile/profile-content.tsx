@@ -61,7 +61,7 @@ const ANIME_STATUS_GROUPS = [
   { value: "rewatching", label: "Rewatching" },
   { value: "paused", label: "Paused" },
   { value: "dropped", label: "Dropped" },
-  { value: "plan_to_watch", label: "Planejado" },
+  { value: "plan_to_watch", label: "Planned" },
 ] as const;
 
 const MANGA_STATUS_GROUPS = [
@@ -70,25 +70,25 @@ const MANGA_STATUS_GROUPS = [
   { value: "rereading", label: "Rereading" },
   { value: "paused", label: "Paused" },
   { value: "dropped", label: "Dropped" },
-  { value: "plan_to_read", label: "Planejado" },
+  { value: "plan_to_read", label: "Planned" },
 ] as const;
 
 function getLibraryEmptyStateCopy(
   activeView: "anime" | "manga",
   activeFilter: string,
-  statusGrorps: readonly { value: string; label: string }[],
+  statusGroups: readonly { value: string; label: string }[],
 ) {
   const mediaLabel = activeView === "anime" ? "anime" : "manga";
 
   if (activeFilter === "all") {
     return {
       title: `No ${mediaLabel} saved`,
-      description: "Esta lista ainda esta vazia.",
+      description: "This list is still empty.",
     };
   }
 
-  const activeGrorp = statusGrorps.find((group) => group.value === activeFilter);
-  const filterLabel = activeGrorp?.label.toLowerCase() ?? "selecionado";
+  const activeGroup = statusGroups.find((group) => group.value === activeFilter);
+  const filterLabel = activeGroup?.label.toLowerCase() ?? "selected";
 
   return {
     title: `No ${mediaLabel} here`,
@@ -426,7 +426,7 @@ export function ProfileContent({
   const activeView = initialView;
   const activeFilter = initialFilter;
   const isLibraryView = activeView === "anime" || activeView === "manga";
-  const statusGrorps = activeView === "anime" ? ANIME_STATUS_GROUPS : MANGA_STATUS_GROUPS;
+  const statusGroups = activeView === "anime" ? ANIME_STATUS_GROUPS : MANGA_STATUS_GROUPS;
   const library = activeView === "anime" ? animeLibrary : activeView === "manga" ? mangaLibrary : [];
   const visibleFeed = feed.filter((activity) => activity.title.trim().length > 0);
   const visibleEntries =
@@ -524,7 +524,7 @@ export function ProfileContent({
                 <Link className={`profile-filter-link ${activeFilter === "all" ? "profile-filter-link-active" : ""}`} href={getProfileHref(activeView)}>
                   All
                 </Link>
-                {statusGrorps.map((group) => (
+                {statusGroups.map((group) => (
                   <Link
                     className={`profile-filter-link ${activeFilter === group.value ? "profile-filter-link-active" : ""}`}
                     href={getProfileHref(activeView, group.value)}
@@ -563,7 +563,7 @@ export function ProfileContent({
         />
       ) : visibleEntries.length ? (
         <div className="space-y-6 profile-library-stack">
-          {statusGrorps.map((group) => {
+          {statusGroups.map((group) => {
             const entries = visibleEntries.filter((entry) => entry.status === group.value);
 
             if (!entries.length) {
@@ -606,7 +606,7 @@ export function ProfileContent({
           {...getLibraryEmptyStateCopy(
             activeView,
             activeFilter,
-            statusGrorps,
+            statusGroups,
           )}
         />
       )}

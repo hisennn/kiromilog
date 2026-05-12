@@ -1003,11 +1003,11 @@ a.search-result-tracked-copy:hover {
 .message-notification-body {
   overflow: hidden;
   color: var(--muted);
-  display: -webkit-box;
+  display: block;
   font-size: 0.78rem;
   line-height: 1.45;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .message-notification-dot {

@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { ActivityLikeButton } from "@/components/app/activity-like-button";
+import { getActivityActionText } from "@/lib/activity-copy";
 
 type ActivityCardProps = {
   variant?: "feed" | "profile";
@@ -25,53 +26,13 @@ type ActivityCardProps = {
   };
 };
 
-function getActivityAction(activity: ActivityCardProps["activity"]) {
-  if (activity.kind === "anime_progress") {
-    if (activity.progressFrom && activity.progressTo && activity.progressTo > activity.progressFrom + 1) {
-      return `watched eps ${activity.progressFrom + 1}-${activity.progressTo}`;
-    }
-
-    if (activity.progressTo) {
-      return `watched ep ${activity.progressTo}`;
-    }
-  }
-
-  if (activity.kind === "manga_progress") {
-    if (activity.progressFrom && activity.progressTo && activity.progressTo > activity.progressFrom + 1) {
-      return `read ch ${activity.progressFrom + 1}-${activity.progressTo}`;
-    }
-
-    if (activity.progressTo) {
-      return `read ch ${activity.progressTo}`;
-    }
-  }
-
-  if (activity.kind === "anime_status" || activity.kind === "manga_status") {
-    const listType = activity.kind === "anime_status" ? "anime" : "manga";
-
-    if (activity.status === "completed") return "completed";
-    if (activity.status === "watching") return "is watching";
-    if (activity.status === "reading") return "is reading";
-    if (activity.status === "paused") return "paused";
-    if (activity.status === "dropped") return "dropped";
-    if (activity.status === "plan_to_watch") return "plans to watch";
-    if (activity.status === "plan_to_read") return "plans to read";
-    if (activity.status === "rewatching") return "is rewatching";
-    if (activity.status === "rereading") return "is rereading";
-
-    return `added to ${listType} list`;
-  }
-
-  return "favorited";
-}
-
 export function ActivityCard({ activity, variant = "feed" }: ActivityCardProps) {
   const mediaLink = activity.isExplicitBlocked
     ? "/settings"
     : activity.mediaKind && activity.mediaMalId
       ? `/${activity.mediaKind}/${activity.mediaMalId}`
       : "#";
-  const actionText = getActivityAction(activity);
+  const actionText = getActivityActionText(activity);
   const imageClassName = `object-cover transition-transform duration-300 ${
     activity.isExplicitBlocked ? "blur-sm scale-110 opacity-50" : "group-hover:scale-105"
   }`;

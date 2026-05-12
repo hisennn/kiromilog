@@ -323,7 +323,7 @@ function AnimeTrackingFormInner({
 
       setIsFavorite(result.favorited);
       toast(
-        result.favorited ? "Adicionado aos favoritos" : "Removed dos favoritos",
+        result.favorited ? "Added to favorites" : "Removed from favorites",
         result.favorited ? "success" : "danger",
       );
       router.refresh();

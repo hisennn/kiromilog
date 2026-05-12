@@ -21,6 +21,7 @@ export type ActivityLikeNotification = {
   activityCount: number;
   latestActivityId: string | null;
   latestActivityTitle: string | null;
+  latestActivityText: string | null;
   updatedAt: string;
   actor: {
     username: string;

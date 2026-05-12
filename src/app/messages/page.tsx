@@ -23,9 +23,9 @@ export default async function MessagesPage() {
         <MessageThreadList threads={threads} viewerId={viewer.id} />
         <article className="message-chat-panel message-chat-empty-panel">
           <div>
-            <p className="eyebrow">Selecione uma conversa</p>
+            <p className="eyebrow">Select a conversation</p>
             <p className="mt-2 text-sm text-muted">
-              Chats ficam disponiveis quando as duas pessoas se seguem.
+              Chats are available when both people follow each other.
             </p>
           </div>
         </article>

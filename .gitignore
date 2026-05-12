@@ -26,6 +26,16 @@
 .DS_Store
 *.pem
 
+# local workspace notes and agent tooling
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.claude/
+.codex/
+.cursor/
+.volta/
+.windsurf/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

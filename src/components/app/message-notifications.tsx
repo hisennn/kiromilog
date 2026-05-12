@@ -243,7 +243,7 @@ export function MessageNotifications({
                       <span className="message-notification-body">
                         {item.notification.activityCount > 1
                           ? `liked ${item.notification.activityCount} posts`
-                          : `liked ${item.notification.latestActivityTitle ?? "your post"}`}
+                          : `liked: ${item.notification.latestActivityText ?? "your post"}`}
                       </span>
                     </span>
                     <span className="message-notification-dot" />

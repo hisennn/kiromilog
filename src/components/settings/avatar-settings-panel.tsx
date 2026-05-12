@@ -70,7 +70,7 @@ export function AvatarSettingsPanel({
       }
 
       handleFileChange(null);
-      toast("Avatar atualizado.");
+      toast("Avatar updated.");
       router.refresh();
     });
   };
@@ -85,7 +85,7 @@ export function AvatarSettingsPanel({
       }
 
       handleFileChange(null);
-      toast("Avatar removido.");
+      toast("Avatar removed.");
       router.refresh();
     });
   };
@@ -146,7 +146,7 @@ export function AvatarSettingsPanel({
               className="input flex h-11 cursor-pointer items-center justify-between gap-3 px-3 text-sm text-muted transition-colors hover:border-line/80 hover:text-foreground"
             >
               <span className="truncate">
-                {selectedFile ? selectedFile.name : "Selecione um novo avatar"}
+                {selectedFile ? selectedFile.name : "Select a new avatar"}
               </span>
               <span className="text-xs uppercase tracking-[0.18em] text-muted/80">Browse</span>
             </label>
@@ -159,7 +159,7 @@ export function AvatarSettingsPanel({
               disabled={isBusy || !selectedFile}
               onClick={handleUpload}
             >
-              Send foto
+              Upload photo
             </button>
             <button
               type="button"
@@ -167,7 +167,7 @@ export function AvatarSettingsPanel({
               disabled={isBusy || (!avatarUrl && !selectedFile)}
               onClick={handleRemove}
             >
-              Remove foto
+              Remove photo
             </button>
           </div>
         </section>

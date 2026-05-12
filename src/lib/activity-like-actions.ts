@@ -12,6 +12,7 @@ import {
   activityLikes,
   users,
 } from "@/lib/db/schema";
+import { getActivitySummaryText } from "@/lib/activity-copy";
 import { ActivityPayload } from "@/lib/media-payload";
 import { getPusherServer } from "@/lib/pusher/server";
 import {
@@ -54,6 +55,11 @@ export async function toggleActivityLikeAction(
     .select({
       id: activities.id,
       actorId: activities.actorId,
+      kind: activities.kind,
+      mediaKind: activities.mediaKind,
+      status: activities.status,
+      progressFrom: activities.progressFrom,
+      progressTo: activities.progressTo,
       payload: activities.payload,
       username: users.username,
     })
@@ -137,6 +143,14 @@ export async function toggleActivityLikeAction(
       .where(eq(activityLikeNotifications.id, notification.id));
 
     const payload = activity.payload as ActivityPayload | null;
+    const latestActivityText = getActivitySummaryText({
+      kind: activity.kind,
+      mediaKind: activity.mediaKind,
+      status: activity.status,
+      progressFrom: activity.progressFrom,
+      progressTo: activity.progressTo,
+      title: payload?.title ?? null,
+    });
     const pusher = getPusherServer();
     await pusher?.trigger(`private-user-${activity.actorId}`, "activity-like:new", {
       id: notification.id,
@@ -144,6 +158,7 @@ export async function toggleActivityLikeAction(
       activityCount,
       latestActivityId: activity.id,
       latestActivityTitle: payload?.title ?? null,
+      latestActivityText,
       updatedAt: now.toISOString(),
       actor: {
         username: viewer.username,

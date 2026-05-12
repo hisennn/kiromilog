@@ -77,7 +77,7 @@ export function QuickTrackingDropdown({
       setOptimisticHasEntry(true);
 
       const label = options.find((option) => option.value === status)?.label || status;
-      toast(`Adicionado em ${label}`);
+      toast(`Added to ${label}`);
       router.refresh();
     });
   };
