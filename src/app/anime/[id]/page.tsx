@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/app/app-header";
@@ -21,6 +22,30 @@ type NamedEntry = {
   mal_id: number;
   name: string;
 };
+
+export async function generateMetadata({ params }: AnimePageProps): Promise<Metadata> {
+  const { id } = await params;
+  const malId = Number(id);
+
+  if (!Number.isInteger(malId) || malId <= 0) {
+    return {
+      title: "Anime",
+    };
+  }
+
+  try {
+    const media = await getMediaDetail(malId, "anime");
+
+    return {
+      title: media.title,
+      description: media.synopsis ?? "Anime details on Kiromilog.",
+    };
+  } catch {
+    return {
+      title: "Anime",
+    };
+  }
+}
 
 export default async function AnimeDetailPage({ params }: AnimePageProps) {
   const viewer = await ensureViewerProfile();
@@ -86,7 +111,7 @@ export default async function AnimeDetailPage({ params }: AnimePageProps) {
           </div>
 
           <div className="flex flex-col gap-2 relative z-10">
-                        <QuickTrackingDropdown
+            <QuickTrackingDropdown
               key={`${media.malId}:${entry?.status ?? "new"}:${entry ? "existing" : "new"}`}
               mediaType="anime"
               malId={media.malId}
@@ -177,8 +202,4 @@ export default async function AnimeDetailPage({ params }: AnimePageProps) {
     </main>
   );
 }
-
-
-
-
 

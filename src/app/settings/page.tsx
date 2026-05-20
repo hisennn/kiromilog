@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/app/app-header";
@@ -6,6 +7,9 @@ import { AvatarSettingsPanel } from "@/components/settings/avatar-settings-panel
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Settings",
+};
 
 export default async function SettingsPage() {
   const profile = await ensureViewerProfile();

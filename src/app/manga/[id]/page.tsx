@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/app/app-header";
@@ -21,6 +22,30 @@ type NamedEntry = {
   mal_id: number;
   name: string;
 };
+
+export async function generateMetadata({ params }: MangaPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const malId = Number(id);
+
+  if (!Number.isInteger(malId) || malId <= 0) {
+    return {
+      title: "Manga",
+    };
+  }
+
+  try {
+    const media = await getMediaDetail(malId, "manga");
+
+    return {
+      title: media.title,
+      description: media.synopsis ?? "Manga details on Kiromilog.",
+    };
+  } catch {
+    return {
+      title: "Manga",
+    };
+  }
+}
 
 export default async function MangaDetailPage({ params }: MangaPageProps) {
   const viewer = await ensureViewerProfile();
@@ -80,7 +105,7 @@ export default async function MangaDetailPage({ params }: MangaPageProps) {
           </div>
 
           <div className="flex flex-col gap-2 relative z-10">
-                        <QuickTrackingDropdown
+            <QuickTrackingDropdown
               key={`${media.malId}:${entry?.status ?? "new"}:${entry ? "existing" : "new"}`}
               mediaType="manga"
               malId={media.malId}
@@ -165,8 +190,4 @@ export default async function MangaDetailPage({ params }: MangaPageProps) {
     </main>
   );
 }
-
-
-
-
 

@@ -1,9 +1,14 @@
+import type { Metadata } from "next";
+
 import { AppHeader } from "@/components/app/app-header";
 import { MessageThreadList } from "@/components/chat/message-thread-list";
 import { getViewerThreads } from "@/lib/chat";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Messages",
+};
 
 export default async function MessagesPage() {
   const viewer = await ensureViewerProfile();

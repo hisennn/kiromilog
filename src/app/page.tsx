@@ -1,9 +1,13 @@
 ﻿import Link from "next/link";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { getSession } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Welcome",
+};
 
 export default async function Home() {
   const session = await getSession();

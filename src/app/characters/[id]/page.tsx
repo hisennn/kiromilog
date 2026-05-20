@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/app/app-header";
@@ -32,6 +33,31 @@ type CharacterPayload = {
 
 function resolvePayloadImage(images?: { jpg?: { image_url?: string }; webp?: { image_url?: string } }) {
   return images?.webp?.image_url || images?.jpg?.image_url || null;
+}
+
+export async function generateMetadata({ params }: CharacterPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const malId = Number(id);
+
+  if (!Number.isInteger(malId) || malId <= 0) {
+    return {
+      title: "Character",
+    };
+  }
+
+  try {
+    const character = await getCharacterDetail(malId);
+    const payload = character.payload as CharacterPayload;
+
+    return {
+      title: character.name,
+      description: payload.about ?? "Character details on Kiromilog.",
+    };
+  } catch {
+    return {
+      title: "Character",
+    };
+  }
 }
 
 export default async function CharacterPage({ params }: CharacterPageProps) {

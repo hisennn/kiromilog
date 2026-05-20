@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { ActivityCard } from "@/components/app/activity-card";
@@ -8,6 +9,9 @@ import { getInProgressEntries, getProfileStats, getViewerFeed } from "@/lib/feed
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Home",
+};
 
 export default async function HomePage() {
   const profile = await ensureViewerProfile();
@@ -26,7 +30,7 @@ export default async function HomePage() {
     <main className="app-shell animate-fade-in-up">
       <AppHeader avatarUrl={profile.avatarUrl} current="feed" nickname={profile.nickname} username={profile.username} viewerId={profile.id} />
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_22rem]">     
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_22rem]">
         <div className="space-y-4">
           <section className="section-head animate-fade-in-up animate-delay-100">
             <div>

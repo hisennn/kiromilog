@@ -12,10 +12,14 @@ import {
   getClientIpFromCurrentRequest,
 } from "@/lib/rate-limit";
 import { AVATAR_MAX_UPLOAD_MB } from "@/lib/settings";
-import { utapi } from "@/lib/uploadthing";
+import { isUploadThingConfigured, utapi } from "@/lib/uploadthing";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
-const allowedAvatarMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const avatarExtensionsByMimeType = new Map([
+  ["image/jpeg", "jpg"],
+  ["image/png", "png"],
+  ["image/webp", "webp"],
+]);
 const adultContentPreferenceSchema = z.boolean();
 
 function revalidateViewerRoutes(username: string) {
@@ -80,13 +84,19 @@ export async function uploadAvatarAction(formData: FormData) {
     return { ok: false as const, message: "Too many uploads. Try again later." };
   }
 
+  if (!isUploadThingConfigured()) {
+    return { ok: false as const, message: "Avatar uploads are not configured." };
+  }
+
   const file = formData.get("avatar");
 
   if (!(file instanceof File) || file.size === 0) {
     return { ok: false as const, message: "Choose an image before uploading." };
   }
 
-  if (!allowedAvatarMimeTypes.has(file.type)) {
+  const extension = avatarExtensionsByMimeType.get(file.type);
+
+  if (!extension) {
     return { ok: false as const, message: "Use JPG, PNG, or WEBP for the avatar." };
   }
 
@@ -95,7 +105,7 @@ export async function uploadAvatarAction(formData: FormData) {
   if (file.size > maxUploadBytes) {
     return {
       ok: false as const,
-      message: "Esta imagem passa do limite de 5 MB.",
+      message: "This image is over the 5 MB limit.",
     };
   }
 
@@ -107,7 +117,7 @@ export async function uploadAvatarAction(formData: FormData) {
 
   const uploadFile = new File(
     [fileBuffer],
-    `${profile.id}-${Date.now()}-${file.name}`,
+    `${profile.id}-${Date.now()}.${extension}`,
     {
       type: file.type,
       lastModified: file.lastModified,

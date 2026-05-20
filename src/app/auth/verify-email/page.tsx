@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { VerifyEmailActions } from "@/components/auth/verify-email-actions";
@@ -11,6 +12,9 @@ import {
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Verify Email",
+};
 
 type VerifyEmailPageProps = {
   searchParams?: Promise<{

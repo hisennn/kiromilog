@@ -1,21 +1,18 @@
 # Kiromilog
 
-Kiromilog is a web app for tracking anime and manga.
+Kiromilog is in English because I also use the project to study the language.
 
-The project was also made as part of a college activity. The goal is to present a new project with a clear scope, chosen technology, target use, and expected result.
+Kiromilog is a web app for tracking anime and manga. It was also made for a college activity about creating and presenting a new project.
 
-## What It Does
+## Features
 
-- Create an account and sign in.
-- Search anime, manga, characters, and users.
-- Add anime and manga to personal lists.
-- Mark anime, manga, and characters as favorites.
-- View anime and manga details using data from Jikan.
-- View character pages and cast pages.
-- Follow users.
-- Send messages when both users follow each other.
-- Upload a profile avatar.
-- Control adult content visibility in settings.
+- Account creation and login.
+- Anime, manga, character, and user search.
+- Anime and manga lists.
+- Favorite anime, manga, and characters.
+- Profile pages, follows, and messages.
+- Profile avatar upload.
+- Adult content preference.
 
 ## Stack
 
@@ -23,26 +20,16 @@ The project was also made as part of a college activity. The goal is to present 
 - React 19
 - TypeScript
 - Tailwind CSS
-- Neon Postgres
-- Neon Auth
+- Neon Postgres and Neon Auth
 - Drizzle ORM
 - UploadThing
 - Pusher
 - Jikan API
 - Iconoir icons
 
-## External Services
+## Environment
 
-Kiromilog uses a few external services:
-
-- Neon for the database and authentication.
-- UploadThing for profile avatar uploads.
-- Pusher for realtime messages and notifications.
-- Jikan for anime, manga, and character data.
-
-## Environment Variables
-
-Create a `.env.local` file based on `.env.example`.
+Copy `.env.example` to `.env.local` and fill in the values.
 
 Required:
 
@@ -54,7 +41,7 @@ NEXT_PUBLIC_APP_URL=
 UPLOADTHING_TOKEN=
 ```
 
-Optional, used for realtime messages and notifications:
+Optional:
 
 ```txt
 PUSHER_APP_ID=
@@ -64,78 +51,39 @@ NEXT_PUBLIC_PUSHER_APP_KEY=
 NEXT_PUBLIC_PUSHER_CLUSTER=
 ```
 
-For Vercel, add the same variables in the project environment settings.
-
-For Neon Auth in production, add the deployed site URL as a trusted origin:
+In Neon Auth, add the production URL as a trusted origin:
 
 ```txt
 https://kiromilog.vercel.app
 ```
 
-## Running Locally
-
-Install dependencies:
+## Local Setup
 
 ```bash
 npm install
-```
-
-Run the development server:
-
-```bash
 npm run dev
 ```
 
-Open:
-
-```txt
-http://localhost:3000
-```
+Open `http://localhost:3000`.
 
 ## Database
 
-Generate migrations:
-
 ```bash
 npm run db:generate
-```
-
-Run migrations:
-
-```bash
 npm run db:migrate
-```
-
-Push schema directly:
-
-```bash
 npm run db:push
-```
-
-Open Drizzle Studio:
-
-```bash
 npm run db:studio
 ```
 
 ## Checks
 
-Run lint:
-
 ```bash
 npm run lint
-```
-
-Run production build:
-
-```bash
 npm run build
 ```
 
 ## Notes
 
-Profile avatars are uploaded to UploadThing. The database stores only the avatar URL and the UploadThing file key.
+Avatars are stored in UploadThing. Neon stores only the avatar URL and file key.
 
-Anime, manga, and character information comes from Jikan, so availability depends on that API.
-
-This project is still being developed and may change after the college presentation.
+Anime, manga, and character data comes from Jikan.

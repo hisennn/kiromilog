@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { and, count, eq, ilike, inArray, or } from "drizzle-orm";
 
@@ -12,6 +13,9 @@ import { searchCharacters, searchMediaPage } from "@/lib/jikan/client";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Search",
+};
 
 type SearchPageProps = {
   searchParams: Promise<{

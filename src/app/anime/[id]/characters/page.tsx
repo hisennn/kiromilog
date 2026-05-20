@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/app/app-header";
@@ -12,6 +13,29 @@ type AnimeCastPageProps = {
     id: string;
   }>;
 };
+
+export async function generateMetadata({ params }: AnimeCastPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const malId = Number(id);
+
+  if (!Number.isInteger(malId) || malId <= 0) {
+    return {
+      title: "Anime Cast",
+    };
+  }
+
+  try {
+    const media = await getMediaDetail(malId, "anime");
+
+    return {
+      title: `${media.title} Cast`,
+    };
+  } catch {
+    return {
+      title: "Anime Cast",
+    };
+  }
+}
 
 export default async function AnimeCastPage({ params }: AnimeCastPageProps) {
   const viewer = await ensureViewerProfile();

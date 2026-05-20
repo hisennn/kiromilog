@@ -45,11 +45,14 @@ const body = localFont({
 import { Toaster } from "@/components/app/toaster";
 
 export const metadata: Metadata = {
-  title: "Kiromilog",
-  description: "Listas de anime e manga em um lugar simples.",
+  title: {
+    default: "Kiromilog",
+    template: "%s | Kiromilog",
+  },
+  description: "Anime and manga tracking in one place.",
 };
 
-export default function RootLayort({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;

@@ -39,7 +39,7 @@ function createContentSecurityPolicy(nonce: string) {
     "img-src 'self' data: blob: https://cdn.myanimelist.net https://myanimelist.net https://lh3.googleusercontent.com https://*.googleusercontent.com https://*.ufs.sh https://*.uploadthing.com",
     "font-src 'self' https://fonts.gstatic.com",
     `connect-src ${connectSources.join(" ")}`,
-    "frame-src 'self' https://accounts.google.com",
+    "frame-src 'self'",
     "form-action 'self'",
     "base-uri 'self'",
     "frame-ancestors 'none'",

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { EditPencil } from "iconoir-react";
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/app/app-header";
@@ -91,6 +92,22 @@ function getCompletedMangaProgress(entry: { status: string; progress: number; pa
   }
 
   return entry.progress || 0;
+}
+
+export async function generateMetadata({ params }: ProfilePageProps): Promise<Metadata> {
+  const { username } = await params;
+  const profile = await getProfileByUsername(username);
+
+  if (!profile) {
+    return {
+      title: "Profile",
+    };
+  }
+
+  return {
+    title: `@${profile.username}`,
+    description: profile.bio ?? `${profile.nickname}'s Kiromilog profile.`,
+  };
 }
 
 function FavoriteGrid({

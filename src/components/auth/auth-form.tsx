@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useActionState } from "react";
 
-import { GoogleAuthButton } from "@/components/auth/google-auth-button";        
 import type { AuthActionState } from "@/lib/validation/auth";
 
 type AuthFormProps = {
@@ -17,7 +16,7 @@ type AuthFormProps = {
 const initialState: AuthActionState = {};
 
 export function AuthForm({ action, mode }: AuthFormProps) {
-  const [state, formAction, pending] = useActionState(action, initialState);    
+  const [state, formAction, pending] = useActionState(action, initialState);
   const isSignUp = mode === "sign-up";
 
   return (
@@ -96,14 +95,6 @@ export function AuthForm({ action, mode }: AuthFormProps) {
           {isSignUp ? "I already have an account" : "Create account"}
         </Link>
       </div>
-
-      <div className="divider">
-        <span>or</span>
-      </div>
-
-      <GoogleAuthButton
-        label={isSignUp ? "Continue with Google" : "Sign in with Google"}
-      />
     </form>
   );
 }

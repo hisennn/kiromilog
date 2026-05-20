@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { AuthForm } from "@/components/auth/auth-form";
@@ -5,6 +6,9 @@ import { getSession } from "@/lib/auth/server";
 import { signInAction } from "@/lib/auth-actions";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Sign In",
+};
 
 export default async function SignInPage() {
   const session = await getSession();

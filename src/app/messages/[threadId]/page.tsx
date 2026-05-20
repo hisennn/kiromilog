@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AppHeader } from "@/components/app/app-header";
@@ -15,6 +16,9 @@ type ChatPageProps = {
 };
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Conversation",
+};
 
 export default async function ChatPage({ params }: ChatPageProps) {
   const viewer = await ensureViewerProfile();
