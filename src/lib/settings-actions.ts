@@ -1,8 +1,5 @@
 "use server";
 
-import { mkdir, unlink, writeFile } from "node:fs/promises";
-import path from "node:path";
-
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -17,33 +14,13 @@ import {
 import { AVATAR_MAX_UPLOAD_MB } from "@/lib/settings";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
-const AVATAR_UPLOADS_DIR = path.join(process.cwd(), "public", "uploads", "avatars");
-const avatarMimeToExtension: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-};
+const allowedAvatarMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const adultContentPreferenceSchema = z.boolean();
 
-function revalidateViewerRortes(username: string) {
+function revalidateViewerRoutes(username: string) {
   revalidatePath("/settings");
   revalidatePath(`/u/${username}`);
   revalidatePath("/home");
-}
-
-async function removeAvatarFile(avatarPath: string | null | undefined) {
-  if (!avatarPath) {
-    return;
-  }
-
-  const normalizedPath = path.normalize(avatarPath);
-  const normalizedRoot = path.normalize(AVATAR_UPLOADS_DIR);
-
-  if (!normalizedPath.startsWith(normalizedRoot)) {
-    return;
-  }
-
-  await unlink(normalizedPath).catch(() => undefined);
 }
 
 function matchesAvatarSignature(buffer: Buffer, mimeType: string) {
@@ -90,9 +67,7 @@ export async function uploadAvatarAction(formData: FormData) {
     return { ok: false as const, message: "Choose an image before uploading." };
   }
 
-  const extension = avatarMimeToExtension[file.type];
-
-  if (!extension) {
+  if (!allowedAvatarMimeTypes.has(file.type)) {
     return { ok: false as const, message: "Use JPG, PNG, or WEBP for the avatar." };
   }
 
@@ -105,31 +80,24 @@ export async function uploadAvatarAction(formData: FormData) {
     };
   }
 
-  await mkdir(AVATAR_UPLOADS_DIR, { recursive: true });
-
-  const fileName = `${profile.id}-${crypto.randomUUID()}.${extension}`;
-  const filePath = path.join(AVATAR_UPLOADS_DIR, fileName);
   const fileBuffer = Buffer.from(await file.arrayBuffer());
 
   if (!matchesAvatarSignature(fileBuffer, file.type)) {
     return { ok: false as const, message: "Use a valid JPG, PNG, or WEBP image." };
   }
 
-  await writeFile(filePath, fileBuffer);
-
-  const avatarUrl = `/uploads/avatars/${fileName}`;
+  const avatarUrl = `data:${file.type};base64,${fileBuffer.toString("base64")}`;
 
   await db
     .update(users)
     .set({
       avatarUrl,
-      avatarPath: filePath,
+      avatarPath: null,
       updatedAt: new Date(),
     })
     .where(eq(users.id, profile.id));
 
-  await removeAvatarFile(profile.avatarPath);
-  revalidateViewerRortes(profile.username);
+  revalidateViewerRoutes(profile.username);
 
   return { ok: true as const, avatarUrl };
 }
@@ -160,8 +128,7 @@ export async function removeAvatarAction() {
     })
     .where(eq(users.id, profile.id));
 
-  await removeAvatarFile(profile.avatarPath);
-  revalidateViewerRortes(profile.username);
+  revalidateViewerRoutes(profile.username);
 
   return { ok: true as const };
 }
@@ -196,7 +163,7 @@ export async function updateAdultContentPreferenceAction(enabled: boolean) {
       updatedAt: new Date(),
     })
     .where(eq(users.id, profile.id));
-  revalidateViewerRortes(profile.username);
+  revalidateViewerRoutes(profile.username);
 
   return { ok: true as const, enabled: parsedEnabled.data };
 }
