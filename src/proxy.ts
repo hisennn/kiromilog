@@ -31,7 +31,7 @@ function createContentSecurityPolicy(nonce: string) {
     "default-src 'self'",
     `script-src ${scriptSources.join(" ")}`,
     `script-src-elem ${scriptSources.join(" ")}`,
-    `style-src 'self' 'nonce-${nonce}' https://fonts.googleapis.com`,
+    `style-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com`,
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data: blob: https://cdn.myanimelist.net https://myanimelist.net https://lh3.googleusercontent.com https://*.googleusercontent.com",
     "font-src 'self' https://fonts.gstatic.com",
