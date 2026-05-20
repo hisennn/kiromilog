@@ -2,14 +2,14 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { eq, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import {
   auth,
   getSession,
   getSessionWithCookieMutation,
 } from "@/lib/auth/server";
-import { db } from "@/lib/db";
+import { db, sql as rawSql } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import {
   getVerificationCooldownRemaining,
@@ -32,6 +32,10 @@ function readString(formData: FormData, key: string) {
 }
 
 function normalizePublicNickname(input: string) {
+  return input.trim().toLowerCase();
+}
+
+function normalizeEmail(input: string) {
   return input.trim().toLowerCase();
 }
 
@@ -73,6 +77,21 @@ function isUniqueConstraintError(error: unknown, constraint: string) {
     error instanceof Error &&
     (error.message.includes(constraint) || error.message.includes("duplicate key"))
   );
+}
+
+async function hasAuthPasswordCredential(email: string) {
+  const rows = await rawSql`
+    select exists (
+      select 1
+      from neon_auth."user" auth_user
+      inner join neon_auth.account account on account."userId" = auth_user.id
+      where lower(auth_user.email) = ${email}
+        and account."providerId" = 'credential'
+        and account.password is not null
+    ) as exists
+  `;
+
+  return Boolean(rows[0]?.exists);
 }
 
 async function setVerificationResendCookie() {
@@ -166,9 +185,10 @@ export async function signInAction(
     };
   }
 
+  const email = normalizeEmail(parsed.data.email);
   const waitSeconds = await checkAuthRateLimit(
     "sign-in",
-    parsed.data.email,
+    email,
     8,
     60 * 1000,
   );
@@ -179,8 +199,20 @@ export async function signInAction(
     };
   }
 
+  const [profileUser] = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
+
+  if (profileUser && !(await hasAuthPasswordCredential(email))) {
+    return {
+      error: "This profile exists, but it does not have a password account yet. Create the account again with the same email to repair it.",
+    };
+  }
+
   const { data, error } = await auth.signIn.email({
-    email: parsed.data.email,
+    email,
     password: parsed.data.password,
   });
 
@@ -226,9 +258,10 @@ export async function signUpAction(
     };
   }
 
+  const email = normalizeEmail(parsed.data.email);
   const waitSeconds = await checkAuthRateLimit(
     "sign-up",
-    parsed.data.email,
+    email,
     4,
     60 * 60 * 1000,
   );
@@ -240,21 +273,25 @@ export async function signUpAction(
   }
 
   const normalizedNickname = normalizePublicNickname(parsed.data.nickname);
-  const [existingUser] = await db
+  const [existingNicknameUser] = await db
     .select({
       email: users.email,
       username: users.username,
     })
     .from(users)
-    .where(
-      or(
-        eq(users.username, normalizedNickname),
-        eq(users.email, parsed.data.email),
-      ),
-    )
+    .where(eq(users.username, normalizedNickname))
+    .limit(1);
+  const [existingEmailUser] = await db
+    .select({
+      email: users.email,
+      username: users.username,
+      nickname: users.nickname,
+    })
+    .from(users)
+    .where(eq(users.email, email))
     .limit(1);
 
-  if (existingUser?.username === normalizedNickname) {
+  if (existingNicknameUser && existingNicknameUser.email !== email) {
     return {
       fieldErrors: {
         nickname: ["This nickname is already in use."],
@@ -262,7 +299,7 @@ export async function signUpAction(
     };
   }
 
-  if (existingUser?.email === parsed.data.email) {
+  if (existingEmailUser && (await hasAuthPasswordCredential(email))) {
     return {
       fieldErrors: {
         email: ["This email is already registered."],
@@ -272,7 +309,7 @@ export async function signUpAction(
 
   const { data, error } = await auth.signUp.email({
     name: normalizedNickname,
-    email: parsed.data.email,
+    email,
     password: parsed.data.password,
   });
 
@@ -289,15 +326,29 @@ export async function signUpAction(
   }
 
   try {
-    await db.insert(users).values({
-      id: data.user.id,
-      email: data.user.email,
-      username: normalizedNickname,
-      nickname: normalizedNickname,
-      avatarUrl: data.user.image ?? null,
-      onboardingCompleted: false,
-      updatedAt: new Date(),
-    });
+    if (existingEmailUser) {
+      await db
+        .update(users)
+        .set({
+          id: data.user.id,
+          email: data.user.email,
+          username: existingEmailUser.username,
+          nickname: existingEmailUser.nickname,
+          avatarUrl: data.user.image ?? null,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.email, email));
+    } else {
+      await db.insert(users).values({
+        id: data.user.id,
+        email: data.user.email,
+        username: normalizedNickname,
+        nickname: normalizedNickname,
+        avatarUrl: data.user.image ?? null,
+        onboardingCompleted: false,
+        updatedAt: new Date(),
+      });
+    }
   } catch (insertError) {
     if (isUniqueConstraintError(insertError, "users_username_unique")) {
       return {
@@ -318,7 +369,7 @@ export async function signUpAction(
     throw insertError;
   }
 
-  await setPendingVerificationEmailCookie(parsed.data.email);
+  await setPendingVerificationEmailCookie(email);
   await setVerificationResendCookie();
   redirect("/auth/verify-email?sent=1");
 }
