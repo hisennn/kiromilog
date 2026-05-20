@@ -12,6 +12,7 @@ import {
   getClientIpFromCurrentRequest,
 } from "@/lib/rate-limit";
 import { AVATAR_MAX_UPLOAD_MB } from "@/lib/settings";
+import { utapi } from "@/lib/uploadthing";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 const allowedAvatarMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -42,6 +43,24 @@ function matchesAvatarSignature(buffer: Buffer, mimeType: string) {
   }
 
   return false;
+}
+
+function getUploadThingFileKey(avatarPath: string | null | undefined) {
+  if (!avatarPath?.startsWith("uploadthing:")) {
+    return null;
+  }
+
+  return avatarPath.slice("uploadthing:".length);
+}
+
+async function removeUploadedAvatar(avatarPath: string | null | undefined) {
+  const fileKey = getUploadThingFileKey(avatarPath);
+
+  if (!fileKey) {
+    return;
+  }
+
+  await utapi.deleteFiles(fileKey).catch(() => undefined);
 }
 
 export async function uploadAvatarAction(formData: FormData) {
@@ -86,17 +105,35 @@ export async function uploadAvatarAction(formData: FormData) {
     return { ok: false as const, message: "Use a valid JPG, PNG, or WEBP image." };
   }
 
-  const avatarUrl = `data:${file.type};base64,${fileBuffer.toString("base64")}`;
+  const uploadFile = new File(
+    [fileBuffer],
+    `${profile.id}-${Date.now()}-${file.name}`,
+    {
+      type: file.type,
+      lastModified: file.lastModified,
+    },
+  );
+  const uploaded = await utapi.uploadFiles(uploadFile, {
+    acl: "public-read",
+  });
+
+  if (uploaded.error) {
+    return { ok: false as const, message: "Could not upload the image right now." };
+  }
+
+  const avatarUrl = uploaded.data.ufsUrl;
+  const avatarPath = `uploadthing:${uploaded.data.key}`;
 
   await db
     .update(users)
     .set({
       avatarUrl,
-      avatarPath: null,
+      avatarPath,
       updatedAt: new Date(),
     })
     .where(eq(users.id, profile.id));
 
+  await removeUploadedAvatar(profile.avatarPath);
   revalidateViewerRoutes(profile.username);
 
   return { ok: true as const, avatarUrl };
@@ -128,6 +165,7 @@ export async function removeAvatarAction() {
     })
     .where(eq(users.id, profile.id));
 
+  await removeUploadedAvatar(profile.avatarPath);
   revalidateViewerRoutes(profile.username);
 
   return { ok: true as const };

@@ -18,6 +18,9 @@ function createContentSecurityPolicy(nonce: string) {
     "'self'",
     "https://api.jikan.moe",
     neonAuthOrigin,
+    "https://api.uploadthing.com",
+    "https://*.ufs.sh",
+    "https://*.uploadthing.com",
     "https://*.pusher.com",
     "wss://*.pusher.com",
   ];
@@ -33,7 +36,7 @@ function createContentSecurityPolicy(nonce: string) {
     `script-src-elem ${scriptSources.join(" ")}`,
     `style-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com`,
     "style-src-attr 'unsafe-inline'",
-    "img-src 'self' data: blob: https://cdn.myanimelist.net https://myanimelist.net https://lh3.googleusercontent.com https://*.googleusercontent.com",
+    "img-src 'self' data: blob: https://cdn.myanimelist.net https://myanimelist.net https://lh3.googleusercontent.com https://*.googleusercontent.com https://*.ufs.sh https://*.uploadthing.com",
     "font-src 'self' https://fonts.gstatic.com",
     `connect-src ${connectSources.join(" ")}`,
     "frame-src 'self' https://accounts.google.com",

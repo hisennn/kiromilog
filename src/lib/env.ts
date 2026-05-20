@@ -12,6 +12,7 @@ const envSchema = z.object({
   PUSHER_APP_SECRET: z.string().optional(),
   NEXT_PUBLIC_PUSHER_APP_KEY: z.string().optional(),
   NEXT_PUBLIC_PUSHER_CLUSTER: z.string().optional(),
+  UPLOADTHING_TOKEN: z.string().optional(),
 });
 
 export const env = envSchema.parse({
@@ -24,4 +25,5 @@ export const env = envSchema.parse({
   PUSHER_APP_SECRET: process.env.PUSHER_APP_SECRET,
   NEXT_PUBLIC_PUSHER_APP_KEY: process.env.NEXT_PUBLIC_PUSHER_APP_KEY,
   NEXT_PUBLIC_PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
+  UPLOADTHING_TOKEN: process.env.UPLOADTHING_TOKEN,
 });
