@@ -1,5 +1,6 @@
 "use client";
 
+import { EditPencil, NavArrowDown } from "iconoir-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/app/toaster";
@@ -127,12 +128,10 @@ export function QuickTrackingDropdown({
           type="button"
           onClick={() => setIsOpen((open) => !open)}
         className="flex h-9 shrink-0 items-center justify-center px-2.5 text-muted transition-colors hover:bg-white/5 hover:text-foreground"
-        aria-label="Mais opcoes"
+        aria-label="More options"
         disabled={isPending}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}>
-          <path d="m6 9 6 6 6-6" />
-        </svg>
+        <NavArrowDown width={16} height={16} strokeWidth={2} className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
       </button>
 
       {isOpen && (
@@ -160,11 +159,8 @@ export function QuickTrackingDropdown({
             onClick={() => setIsOpen(false)}
             className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-sm px-3 py-2 text-left font-sans text-sm font-medium text-muted/70 transition-colors hover:bg-white/10 hover:text-white"
           >
-            Editar
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-70">
-              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-              <path d="m15 5 4 4"/>
-            </svg>
+            Edit
+            <EditPencil width={13} height={13} strokeWidth={2.5} className="opacity-70" />
           </a>
         </div>
       )}

@@ -1,5 +1,6 @@
 "use client";
 
+import { Star } from "iconoir-react";
 import { useState, useTransition } from "react";
 
 import { toggleActivityLikeAction } from "@/lib/activity-like-actions";
@@ -61,20 +62,13 @@ export function ActivityLikeButton({
       onClick={handleClick}
       type="button"
     >
-      <svg
+      <Star
         aria-hidden="true"
         fill={likeState.liked ? "currentColor" : "none"}
-        height="16"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-        viewBox="0 0 24 24"
-        width="16"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path d="M11.48 3.5a.58.58 0 0 1 1.04 0l2.18 4.42a.58.58 0 0 0 .44.32l4.88.71a.58.58 0 0 1 .32.99l-3.53 3.44a.58.58 0 0 0-.17.51l.83 4.86a.58.58 0 0 1-.84.61l-4.36-2.29a.58.58 0 0 0-.54 0l-4.36 2.29a.58.58 0 0 1-.84-.61l.83-4.86a.58.58 0 0 0-.17-.51L3.66 9.94a.58.58 0 0 1 .32-.99l4.88-.71a.58.58 0 0 0 .44-.32l2.18-4.42Z" />
-      </svg>
+        width={16}
+        height={16}
+        strokeWidth={2}
+      />
       <span>{likeState.count}</span>
     </button>
   );

@@ -2,11 +2,13 @@ import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/app/app-header";
+import { MediaCharactersSection } from "@/components/characters/media-characters-section";
 import { saveMangaEntryAction } from "@/lib/library-actions";
 import { MangaTrackingModal } from "@/components/library/tracking-modal";
 import { QuickTrackingDropdown } from "@/components/library/quick-tracking-dropdown";
 import { isExplicitMediaPayload } from "@/lib/content-preferences";
-import { getMediaDetail, getViewerMangaEntry } from "@/lib/media-data";
+import { fetchMediaCharacters } from "@/lib/jikan/client";
+import { getMediaDetail, getViewerMangaEntry, getViewerMangaFavorite } from "@/lib/media-data";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 type MangaPageProps = {
@@ -34,9 +36,11 @@ export default async function MangaDetailPage({ params }: MangaPageProps) {
     notFound();
   }
 
-  const [media, entry] = await Promise.all([
+  const [media, entry, isFavorite, characters] = await Promise.all([
     getMediaDetail(malId, "manga"),
     getViewerMangaEntry(viewer.id, malId),
+    getViewerMangaFavorite(viewer.id, malId),
+    fetchMediaCharacters(malId, "manga").catch(() => []),
   ]);
 
   const payload = media.payload as {
@@ -138,6 +142,8 @@ export default async function MangaDetailPage({ params }: MangaPageProps) {
               {media.synopsis || "No synopsis on Jikan."}
             </p>
           </section>
+
+          <MediaCharactersSection characters={characters} castHref={`/manga/${media.malId}/characters`} />
         </div>
       </section>
 
@@ -154,6 +160,7 @@ export default async function MangaDetailPage({ params }: MangaPageProps) {
         defaultVolumes={entry?.progressVolumes ?? 0}
         maxChapters={payload.chapters ?? null}
         maxVolumes={payload.volumes ?? null}
+        initialIsFavorite={isFavorite}
       />
     </main>
   );

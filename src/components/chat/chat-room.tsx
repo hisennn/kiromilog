@@ -1,5 +1,6 @@
 "use client";
 
+import { Send } from "iconoir-react";
 import Pusher from "pusher-js";
 import Image from "next/image";
 import Link from "next/link";
@@ -181,7 +182,7 @@ export function ChatRoom({
           <div className="flex h-full min-h-80 items-center justify-center text-center">
             <div>
               <p className="eyebrow">No messages yet</p>
-              <p className="mt-2 text-sm text-muted">Comece a conversa.</p>
+              <p className="mt-2 text-sm text-muted">Start the conversation.</p>
             </div>
           </div>
         )}
@@ -191,7 +192,7 @@ export function ChatRoom({
       <form className="message-composer" onSubmit={handleSubmit}>
         {!canMessage ? (
           <p className="message-composer-disabled">
-            {disabledReason ?? "Os dois precisam se seguir para trocar mensagens."}
+            {disabledReason ?? "You both need to follow each other to exchange messages."}
           </p>
         ) : null}
         {error ? <p className="mb-2 text-sm text-accent">{error}</p> : null}
@@ -203,15 +204,12 @@ export function ChatRoom({
             name="body"
             onChange={(event) => setBody(event.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Escreva uma mensagem..."
+            placeholder="Write a message..."
             rows={1}
             value={body}
           />
           <button className="button button-primary shrink-0" disabled={isPending || !canMessage} type="submit">
-            <svg aria-hidden="true" fill="none" height="18" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" viewBox="0 0 24 24" width="18" xmlns="http://www.w3.org/2000/svg">
-              <path d="m22 2-7 20-4-9-9-4Z" />
-              <path d="M22 2 11 13" />
-            </svg>
+            <Send aria-hidden="true" width={18} height={18} strokeWidth={2.2} />
             <span className="sr-only">Send</span>
           </button>
         </div>

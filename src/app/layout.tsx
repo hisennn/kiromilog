@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Sora, Outfit } from "next/font/google";
+import { Sora } from "next/font/google";
+import localFont from "next/font/local";
 
 import "./globals.css";
 
@@ -9,9 +10,36 @@ const display = Sora({
   subsets: ["latin"],
 });
 
-const body = Outfit({
+const body = localFont({
   variable: "--font-reading",
-  subsets: ["latin"],
+  src: [
+    {
+      path: "../../public/fonts/switzer/Switzer-Light.woff2",
+      weight: "300",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/switzer/Switzer-Regular.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/switzer/Switzer-Medium.woff2",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/switzer/Switzer-Semibold.woff2",
+      weight: "600",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/switzer/Switzer-Bold.woff2",
+      weight: "700",
+      style: "normal",
+    },
+  ],
+  display: "swap",
 });
 
 import { Toaster } from "@/components/app/toaster";

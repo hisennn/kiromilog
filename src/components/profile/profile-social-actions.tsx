@@ -1,3 +1,5 @@
+import { ChatBubble } from "iconoir-react";
+
 import { startChatAction } from "@/lib/chat-actions";
 import { toggleFollowAction } from "@/lib/social-actions";
 
@@ -43,20 +45,7 @@ export function ProfileSocialActions({
             className="button button-ghost profile-message-button"
             type="submit"
           >
-            <svg
-              aria-hidden="true"
-              fill="none"
-              height="18"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
-            </svg>
+            <ChatBubble aria-hidden="true" width={18} height={18} strokeWidth={2} />
           </button>
         </form>
       ) : null}

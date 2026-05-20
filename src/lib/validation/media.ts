@@ -7,7 +7,7 @@ const nullableScore = z
 
 export const mediaSearchSchema = z.object({
   q: z.string().trim().min(1).max(100),
-  type: z.enum(["anime", "manga"]),
+  type: z.enum(["anime", "manga", "characters"]),
 });
 
 export const navbarSearchSchema = z.object({

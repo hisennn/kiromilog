@@ -9,11 +9,12 @@ import {
   activities,
   animeCache,
   favoriteAnime,
+  favoriteManga,
   mangaCache,
   userAnimeList,
   userMangaList,
 } from "@/lib/db/schema";
-import { fetchFullMediaEntry, isCacheFresh } from "@/lib/jikan/client";
+import { cacheMedia } from "@/lib/media-cache";
 import {
   consumeRateLimit,
   getClientIpFromCurrentRequest,
@@ -24,6 +25,8 @@ import {
 } from "@/lib/validation/media";
 import { AnimeCachePayload, MangaCachePayload } from "@/lib/media-payload";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
+
+const FAVORITE_LIMIT = 9;
 
 async function createStatusActivity(input: {
   actorId: string;
@@ -111,92 +114,6 @@ async function createOrMergeProgressActivity(input: {
   });
 }
 
-async function cacheAnime(malId: number) {
-  const existing = await db
-    .select()
-    .from(animeCache)
-    .where(eq(animeCache.malId, malId))
-    .limit(1);
-
-  if (existing[0] && isCacheFresh(existing[0].cachedAt)) {
-    return existing[0];
-  }
-
-  const fresh = await fetchFullMediaEntry(malId, "anime");
-  const [saved] = await db
-    .insert(animeCache)
-    .values({
-      malId: fresh.malId,
-      title: fresh.title,
-      titleEnglish: fresh.titleEnglish,
-      titleJapanese: fresh.titleJapanese,
-      imageUrl: fresh.imageUrl,
-      synopsis: fresh.synopsis,
-      payload: fresh.payload,
-      cachedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: animeCache.malId,
-      set: {
-        title: fresh.title,
-        titleEnglish: fresh.titleEnglish,
-        titleJapanese: fresh.titleJapanese,
-        imageUrl: fresh.imageUrl,
-        synopsis: fresh.synopsis,
-        payload: fresh.payload,
-        cachedAt: new Date(),
-        updatedAt: new Date(),
-      },
-    })
-    .returning();
-
-  return saved;
-}
-
-async function cacheManga(malId: number) {
-  const existing = await db
-    .select()
-    .from(mangaCache)
-    .where(eq(mangaCache.malId, malId))
-    .limit(1);
-
-  if (existing[0] && isCacheFresh(existing[0].cachedAt)) {
-    return existing[0];
-  }
-
-  const fresh = await fetchFullMediaEntry(malId, "manga");
-  const [saved] = await db
-    .insert(mangaCache)
-    .values({
-      malId: fresh.malId,
-      title: fresh.title,
-      titleEnglish: fresh.titleEnglish,
-      titleJapanese: fresh.titleJapanese,
-      imageUrl: fresh.imageUrl,
-      synopsis: fresh.synopsis,
-      payload: fresh.payload,
-      cachedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: mangaCache.malId,
-      set: {
-        title: fresh.title,
-        titleEnglish: fresh.titleEnglish,
-        titleJapanese: fresh.titleJapanese,
-        imageUrl: fresh.imageUrl,
-        synopsis: fresh.synopsis,
-        payload: fresh.payload,
-        cachedAt: new Date(),
-        updatedAt: new Date(),
-      },
-    })
-    .returning();
-
-  return saved;
-}
-
 function invalidateLibraryViews(username: string, mediaType: "anime" | "manga", malId: number) {
   revalidatePath("/home");
   revalidatePath(`/u/${username}`);
@@ -216,6 +133,7 @@ async function canMutateLibrary(userId: string, action: string) {
 
 async function createFavoriteActivity(input: {
   actorId: string;
+  mediaType: "anime" | "manga";
   malId: number;
   title: string;
   imageUrl: string | null;
@@ -223,7 +141,7 @@ async function createFavoriteActivity(input: {
   await db.insert(activities).values({
     actorId: input.actorId,
     kind: "favorite_added",
-    mediaKind: "anime",
+    mediaKind: input.mediaType,
     mediaMalId: input.malId,
     payload: {
       title: input.title,
@@ -233,30 +151,31 @@ async function createFavoriteActivity(input: {
   });
 }
 
-async function normalizeFavoriteAnimePositions(
+async function normalizeFavoritePositions(
   tx: typeof db,
   userId: string,
+  table: typeof favoriteAnime | typeof favoriteManga,
 ) {
   const rows = await tx
     .select({
-      id: favoriteAnime.id,
-      position: favoriteAnime.position,
+      id: table.id,
+      position: table.position,
     })
-    .from(favoriteAnime)
-    .where(eq(favoriteAnime.userId, userId))
-    .orderBy(asc(favoriteAnime.position), asc(favoriteAnime.createdAt));
+    .from(table)
+    .where(eq(table.userId, userId))
+    .orderBy(asc(table.position), asc(table.createdAt));
 
   for (const [index, row] of rows.entries()) {
     const nextPosition = index + 1;
 
     if (row.position !== nextPosition) {
       await tx
-        .update(favoriteAnime)
+        .update(table)
         .set({
           position: nextPosition,
           updatedAt: new Date(),
         })
-        .where(eq(favoriteAnime.id, row.id));
+        .where(eq(table.id, row.id));
     }
   }
 }
@@ -284,7 +203,7 @@ export async function saveAnimeEntryAction(formData: FormData) {
   }
 
   const now = new Date();
-  const cachedAnime = await cacheAnime(parsed.data.malId);
+  const cachedAnime = await cacheMedia(parsed.data.malId, "anime");
   const animePayload = cachedAnime.payload as AnimeCachePayload;
   const animeEpisodeLimit = animePayload.episodes ?? null;
   const [existing] = await db
@@ -389,7 +308,7 @@ export async function toggleFavoriteAnimeAction(
     return { ok: false as const, reason: "invalid" as const };
   }
 
-  const cachedAnime = await cacheAnime(malId);
+  const cachedAnime = await cacheMedia(malId, "anime");
   let favorited = false;
   let ok = false;
   let reason: "limit" | "invalid" = "invalid";
@@ -403,7 +322,7 @@ export async function toggleFavoriteAnimeAction(
 
   if (existing) {
     await db.delete(favoriteAnime).where(eq(favoriteAnime.id, existing.id));
-    await normalizeFavoriteAnimePositions(db, profile.id);
+    await normalizeFavoritePositions(db, profile.id, favoriteAnime);
     ok = true;
     favorited = false;
   } else {
@@ -415,7 +334,7 @@ export async function toggleFavoriteAnimeAction(
       .where(eq(favoriteAnime.userId, profile.id))
       .orderBy(asc(favoriteAnime.position), asc(favoriteAnime.createdAt));
 
-    if (currentFavorites.length >= 12) {
+    if (currentFavorites.length >= FAVORITE_LIMIT) {
       reason = "limit";
     } else {
       await db.insert(favoriteAnime).values({
@@ -434,6 +353,7 @@ export async function toggleFavoriteAnimeAction(
     if (favorited) {
       await createFavoriteActivity({
         actorId: profile.id,
+        mediaType: "anime",
         malId,
         title: cachedAnime.title,
         imageUrl: cachedAnime.imageUrl,
@@ -441,6 +361,83 @@ export async function toggleFavoriteAnimeAction(
     }
 
     invalidateLibraryViews(profile.username, "anime", malId);
+  }
+
+  return ok ? { ok: true, favorited } : { ok: false, reason };
+}
+
+export async function toggleFavoriteMangaAction(
+  formData: FormData,
+): Promise<{ ok: true; favorited: boolean } | { ok: false; reason: "limit" | "invalid" }> {
+  const profile = await ensureViewerProfile({ allowCookieMutation: true });
+
+  if (!profile) {
+    redirect("/auth/sign-in");
+  }
+
+  if (!(await canMutateLibrary(profile.id, "favorite-manga"))) {
+    return { ok: false as const, reason: "invalid" as const };
+  }
+
+  const malId = Number(formData.get("malId"));
+
+  if (!Number.isInteger(malId) || malId < 1) {
+    return { ok: false as const, reason: "invalid" as const };
+  }
+
+  const cachedManga = await cacheMedia(malId, "manga");
+  let favorited = false;
+  let ok = false;
+  let reason: "limit" | "invalid" = "invalid";
+  const [existing] = await db
+    .select({
+      id: favoriteManga.id,
+    })
+    .from(favoriteManga)
+    .where(and(eq(favoriteManga.userId, profile.id), eq(favoriteManga.malId, malId)))
+    .limit(1);
+
+  if (existing) {
+    await db.delete(favoriteManga).where(eq(favoriteManga.id, existing.id));
+    await normalizeFavoritePositions(db, profile.id, favoriteManga);
+    ok = true;
+    favorited = false;
+  } else {
+    const currentFavorites = await db
+      .select({
+        id: favoriteManga.id,
+      })
+      .from(favoriteManga)
+      .where(eq(favoriteManga.userId, profile.id))
+      .orderBy(asc(favoriteManga.position), asc(favoriteManga.createdAt));
+
+    if (currentFavorites.length >= FAVORITE_LIMIT) {
+      reason = "limit";
+    } else {
+      await db.insert(favoriteManga).values({
+        userId: profile.id,
+        malId,
+        position: currentFavorites.length + 1,
+        updatedAt: new Date(),
+      });
+
+      ok = true;
+      favorited = true;
+    }
+  }
+
+  if (ok) {
+    if (favorited) {
+      await createFavoriteActivity({
+        actorId: profile.id,
+        mediaType: "manga",
+        malId,
+        title: cachedManga.title,
+        imageUrl: cachedManga.imageUrl,
+      });
+    }
+
+    invalidateLibraryViews(profile.username, "manga", malId);
   }
 
   return ok ? { ok: true, favorited } : { ok: false, reason };
@@ -470,7 +467,7 @@ export async function saveMangaEntryAction(formData: FormData) {
   }
 
   const now = new Date();
-  const cachedManga = await cacheManga(parsed.data.malId);
+  const cachedManga = await cacheMedia(parsed.data.malId, "manga");
   const mangaPayload = cachedManga.payload as MangaCachePayload;
   const mangaChapterLimit = mangaPayload.chapters ?? null;
   const mangaVolumeLimit = mangaPayload.volumes ?? null;

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { Bell } from "iconoir-react";
 import Pusher from "pusher-js";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -149,21 +150,7 @@ export function MessageNotifications({
         onClick={() => setIsOpen((open) => !open)}
         type="button"
       >
-        <svg
-          aria-hidden="true"
-          fill="none"
-          height="18"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          viewBox="0 0 24 24"
-          width="18"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-        </svg>
+        <Bell aria-hidden="true" width={18} height={18} strokeWidth={2} />
         {unreadCount > 0 ? (
           <span className="message-notification-badge">
             {unreadCount > 9 ? "9+" : unreadCount}

@@ -99,6 +99,7 @@ export function SearchResultCard({ item }: SearchResultCardProps) {
               action={saveMangaEntryAction}
               malId={item.malId}
               hasEntry={hasExistingEntry}
+              initialIsFavorite={item.isFavorite ?? false}
               defaultStatus={item.libraryEntry?.status ?? "plan_to_read"}
               defaultScore={item.libraryEntry?.score ?? ""}
               defaultChapters={item.libraryEntry?.progressChapters ?? 0}

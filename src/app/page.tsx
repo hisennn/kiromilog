@@ -45,17 +45,17 @@ export default async function Home() {
               A simple way to save what you watch, what you read, and the people you want to follow.
             </p>
             <p>
-              Profile, listas, follows e mensagens ficam no mesmo lugar.
+              Profiles, lists, follows, and messages stay in one place.
             </p>
           </div>
         </article>
 
         <aside className="panel interactive animate-fade-in-up animate-delay-200">
-          <p className="eyebrow">Comece</p>
+          <p className="eyebrow">Start</p>
           <div className="mt-3 space-y-2 text-sm text-muted">
             <p>Build your list.</p>
-            <p>Encontre pessoas.</p>
-            <p>Continue a conversa.</p>
+            <p>Find people.</p>
+            <p>Keep the conversation going.</p>
           </div>
         </aside>
       </section>

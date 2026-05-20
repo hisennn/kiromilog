@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { EditPencil } from "iconoir-react";
 import { notFound, redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/app/app-header";
@@ -10,6 +11,8 @@ import {
   getProfileByUsername,
   getProfileConnections,
   getProfileFavoriteAnime,
+  getProfileFavoriteCharacters,
+  getProfileFavoriteManga,
   getProfileFeed,
   getProfileLibrary,
   getProfileStats,
@@ -30,6 +33,15 @@ type ProfilePageProps = {
 };
 
 type ProfileView = "timeline" | "anime" | "manga" | "followers" | "following";
+
+type FavoriteGridItem = {
+  id: string;
+  malId: number;
+  title: string | null;
+  imageUrl: string | null;
+  href: string;
+  isExplicitBlocked?: boolean;
+};
 
 function getProfileView(input?: string): ProfileView {
   if (
@@ -81,6 +93,56 @@ function getCompletedMangaProgress(entry: { status: string; progress: number; pa
   return entry.progress || 0;
 }
 
+function FavoriteGrid({
+  title,
+  items,
+  fallbackLabel,
+}: {
+  title: string;
+  items: FavoriteGridItem[];
+  fallbackLabel: string;
+}) {
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <div className="animate-fade-in-up animate-delay-200 pt-2">
+      <h2 className="font-display text-lg text-foreground mb-3">{title}</h2>
+      <div className="grid grid-cols-3 gap-1.5">
+        {items.map((fav) => (
+          <Link
+            key={fav.id}
+            href={fav.href}
+            className="fav-card relative aspect-[3/4] w-full bg-surface-strong transition-opacity hover:opacity-80"
+            aria-label={fav.title ?? `${fallbackLabel} ${fav.malId}`}
+            data-title={fav.title ?? `${fallbackLabel} ${fav.malId}`}
+          >
+            <span className="absolute inset-0 overflow-hidden">
+              {fav.imageUrl && (
+                <Image
+                  alt={fav.title ?? ""}
+                  className={`object-cover ${
+                    fav.isExplicitBlocked ? "scale-110 blur-sm opacity-50" : ""
+                  }`}
+                  fill
+                  sizes="80px"
+                  src={fav.imageUrl}
+                />
+              )}
+              {fav.isExplicitBlocked ? (
+                <span className="absolute inset-0 grid place-items-center bg-black/35 text-[10px] font-bold uppercase tracking-[0.2em] text-white">
+                  +18
+                </span>
+              ) : null}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default async function ProfilePage({ params, searchParams }: ProfilePageProps) {
   const viewer = await ensureViewerProfile();
 
@@ -105,6 +167,8 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
     animeLibrary,
     mangaLibrary,
     favoriteAnime,
+    favoriteManga,
+    favoriteCharacters,
     followState,
     connections,
   ] = await Promise.all([
@@ -112,7 +176,9 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
     getProfileStats(profile.id),
     getProfileLibrary(profile.id, "anime"),
     getProfileLibrary(profile.id, "manga"),
-    getProfileFavoriteAnime(profile.id, 12, { includeAdultContent }),
+    getProfileFavoriteAnime(profile.id, 9, { includeAdultContent }),
+    getProfileFavoriteManga(profile.id, 9, { includeAdultContent }),
+    getProfileFavoriteCharacters(profile.id, 9),
     getFollowState(viewer.id, profile.id),
     activeView === "followers" || activeView === "following"
       ? getProfileConnections(profile.id, activeView)
@@ -174,6 +240,7 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
       progressVolumes: (entry as { progressVolumes: number }).progressVolumes,
       type: (entry.payload as MangaCachePayload | null)?.type ?? null,
       total: (entry.payload as MangaCachePayload | null)?.chapters ?? null,
+      isFavorite: "favoriteMalId" in entry && entry.favoriteMalId !== null,
     };
   });
   const mappedFavoriteAnime = favoriteAnime.map((fav) => {
@@ -187,6 +254,21 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
       href: isExplicitBlocked ? "/settings" : `/anime/${fav.malId}`,
     };
   });
+  const mappedFavoriteManga = favoriteManga.map((fav) => {
+    const isExplicitBlocked =
+      !includeAdultContent && isLibraryEntryExplicit(fav, "manga");
+
+    return {
+      ...fav,
+      isExplicitBlocked,
+      title: isExplicitBlocked ? "NSFW content" : fav.title,
+      href: isExplicitBlocked ? "/settings" : `/manga/${fav.malId}`,
+    };
+  });
+  const mappedFavoriteCharacters = favoriteCharacters.map((fav) => ({
+    ...fav,
+    href: `/characters/${fav.malId}`,
+  }));
   return (
     <main className="app-shell">
       <AppHeader
@@ -210,10 +292,7 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
                   </div>
                 )}
                 <span className="absolute top-2 right-2 inline-flex h-8 w-8 items-center justify-center border border-line bg-black/55 text-foreground opacity-0 transition-all duration-200 group-hover:opacity-100 group-hover:translate-y-0 translate-y-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 20h9" />
-                    <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4Z" />
-                  </svg>
+                  <EditPencil width={14} height={14} strokeWidth={2.2} />
                 </span>
               </Link>
             ) : profile.avatarUrl ? (
@@ -304,41 +383,9 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
             </div>
           </div>
 
-          {mappedFavoriteAnime.length > 0 && (
-            <div className="animate-fade-in-up animate-delay-200 pt-2">
-              <h2 className="font-display text-lg text-foreground mb-3">Fav animes</h2>
-              <div className="grid grid-cols-3 gap-1.5">
-                {mappedFavoriteAnime.map((fav) => (
-                  <Link
-                    key={fav.id}
-                    href={fav.href}
-                    className="fav-card relative aspect-[3/4] w-full bg-surface-strong transition-opacity hover:opacity-80"
-                    aria-label={fav.title ?? `Anime ${fav.malId}`}
-                    data-title={fav.title ?? `Anime ${fav.malId}`}
-                  >
-                    <span className="absolute inset-0 overflow-hidden">
-                    {fav.imageUrl && (
-                      <Image
-                        alt={fav.title ?? ""}
-                        className={`object-cover ${
-                          fav.isExplicitBlocked ? "scale-110 blur-sm opacity-50" : ""
-                        }`}
-                        fill
-                        sizes="80px"
-                        src={fav.imageUrl}
-                      />
-                    )}
-                    {fav.isExplicitBlocked ? (
-                      <span className="absolute inset-0 grid place-items-center bg-black/35 text-[10px] font-bold uppercase tracking-[0.2em] text-white">
-                        +18
-                      </span>
-                    ) : null}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
+          <FavoriteGrid title="Fav anime" items={mappedFavoriteAnime} fallbackLabel="Anime" />
+          <FavoriteGrid title="Fav manga" items={mappedFavoriteManga} fallbackLabel="Manga" />
+          <FavoriteGrid title="Fav characters" items={mappedFavoriteCharacters} fallbackLabel="Character" />
         </aside>
 
         <section className="lg:col-span-3 space-y-6">

@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, Filter, MoreHoriz, Trash } from "iconoir-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -126,7 +127,7 @@ function ProfileConnectionGrid({
         title={activeView === "followers" ? "No followers yet" : "Not following anyone yet"}
         description={
           activeView === "followers"
-            ? "Ninguem segue este perfil ainda."
+            ? "No one follows this profile yet."
             : "This profile is not following anyone yet."
         }
       />
@@ -137,7 +138,7 @@ function ProfileConnectionGrid({
     <div className="profile-social-grid">
       {connections.map((profile, index) => (
         <Link
-          aria-label={`Abrir @${profile.username}`}
+          aria-label={`Open @${profile.username}`}
           className="profile-person-card animate-fade-in-up"
           data-title={`@${profile.username}`}
           href={`/u/${profile.username}`}
@@ -223,9 +224,7 @@ function DeleteEntryDialog({
           >
             {deleted ? (
               <>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+                <Check width={16} height={16} strokeWidth={2.5} />
                 <span className="text-sm font-medium">Removed</span>
               </>
             ) : isDeleting ? (
@@ -288,6 +287,7 @@ function EditLibraryEntryForm({
           action={saveMangaEntryAction}
           malId={entry.malId}
           hasEntry={true}
+          initialIsFavorite={entry.isFavorite ?? false}
           defaultStatus={entry.status}
           defaultScore={entry.score ?? ""}
           defaultChapters={entry.progress}
@@ -303,13 +303,7 @@ function EditLibraryEntryForm({
           className="modal-icon-button modal-icon-button-danger"
           onClick={() => setShowConfirm(true)}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 7h16" />
-            <path d="M10 11v6" />
-            <path d="M14 11v6" />
-            <path d="M6 7l1 11a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-11" />
-            <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-          </svg>
+          <Trash width={19} height={19} strokeWidth={1.9} />
         </button>
       </div>
 
@@ -365,16 +359,12 @@ function LibraryEntryRow({
               ) : null}
               {canEdit && !entry.isExplicitBlocked ? (
                 <span aria-hidden="true" className="library-cover-overlay">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="1" />
-                    <circle cx="19" cy="12" r="1" />
-                    <circle cx="5" cy="12" r="1" />
-                  </svg>
+                  <MoreHoriz width={16} height={16} strokeWidth={2} />
                 </span>
               ) : null}
               {canEdit && !entry.isExplicitBlocked ? (
                 <a
-                  aria-label={`Editar ${entry.title ?? `MAL ${entry.malId}`}`}
+                  aria-label={`Edit ${entry.title ?? `MAL ${entry.malId}`}`}
                   className="library-cover-button"
                   onClick={() => setOpenKey((k) => k + 1)}
                   href={`#${modalId}`}
@@ -515,9 +505,7 @@ export function ProfileContent({
           {activeView === "anime" || activeView === "manga" ? (
             <details className="profile-filter-dropdown" ref={filterRef}>
               <summary className="button button-ghost profile-filter-trigger flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-                </svg>
+                <Filter width={16} height={16} strokeWidth={2} />
                 Filter
               </summary>
               <div className="profile-filter-menu panel">

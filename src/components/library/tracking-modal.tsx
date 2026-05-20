@@ -1,11 +1,12 @@
 "use client";
 
+import { Check, CheckCircle, NavArrowDown, Star, Xmark } from "iconoir-react";
 import Image from "next/image";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { animeStatusOptions, mangaStatusOptions } from "@/lib/library-status";
-import { toggleFavoriteAnimeAction } from "@/lib/library-actions";
+import { toggleFavoriteAnimeAction, toggleFavoriteMangaAction } from "@/lib/library-actions";
 import { toast } from "@/components/app/toaster";
 
 type TrackingAction = (formData: FormData) => Promise<boolean | void>;
@@ -53,20 +54,12 @@ function StatusDropdown({
         className={triggerClassName}
       >
         <span className="min-w-0 truncate">{selectedLabel}</span>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+        <NavArrowDown
+          width={16}
+          height={16}
+          strokeWidth={2}
           className={`text-muted transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
+        />
       </button>
 
       {isOpen && (
@@ -119,6 +112,7 @@ type MangaTrackingModalProps = {
   defaultVolumes: number;
   maxChapters: number | null;
   maxVolumes: number | null;
+  initialIsFavorite: boolean;
 };
 
 type TrackingModalFrameProps = {
@@ -187,7 +181,7 @@ export function TrackingModalFrame({
 }: TrackingModalFrameProps) {
   return (
     <div aria-modal="true" className="tracking-modal-layer" id={modalId} role="dialog">
-      <a aria-label="Fechar modal" className="tracking-modal-backdrop" href="#" />
+      <a aria-label="Close modal" className="tracking-modal-backdrop" href="#" />
       <div className="tracking-modal panel">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -204,11 +198,8 @@ export function TrackingModalFrame({
               ) : null}
             </div>
           </div>
-          <a aria-label="Fechar modal" className="modal-icon-button shrink-0" href="#">
-            <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
-            </svg>
+          <a aria-label="Close modal" className="modal-icon-button shrink-0" href="#">
+            <Xmark width={19} height={19} strokeWidth={2} />
           </a>
         </div>
 
@@ -315,7 +306,7 @@ function AnimeTrackingFormInner({
 
       if (!result.ok) {
         if (result.reason === "limit") {
-          toast("You can favorite up to 12 anime.", "danger");
+          toast("You can favorite up to 9 anime.", "danger");
         }
 
         return;
@@ -384,9 +375,7 @@ function AnimeTrackingFormInner({
                 : "border-[#2b2b2b] bg-[#1c1c1c] text-muted hover:text-[#f3c96a]"
             } ${isFavoritePending ? "cursor-wait" : "cursor-pointer"}`}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-            </svg>
+            <Star width={18} height={18} fill={isFavorite ? "currentColor" : "none"} strokeWidth={2} />
           </button>
           <button
             type="submit"
@@ -401,9 +390,7 @@ function AnimeTrackingFormInner({
           >
             {saveStatus === "success" ? (
               <>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+                <Check width={16} height={16} strokeWidth={2.5} />
                 <span className="text-sm font-medium">Saved</span>
               </>
             ) : isPending ? (
@@ -442,6 +429,7 @@ function MangaTrackingFormInner({
   defaultVolumes,
   maxChapters,
   maxVolumes,
+  initialIsFavorite,
 }: Omit<MangaTrackingModalProps, "title">) {
   const [status, setStatus] = useState(defaultStatus);
   const [score, setScore] = useState<number | "">(normalizeScore(defaultScore));
@@ -460,8 +448,10 @@ function MangaTrackingFormInner({
     progressValueToInput(defaultVolumes, defaultStatus, maxVolumes),
   );
   const [hasSavedEntry, setHasSavedEntry] = useState(hasEntry);
+  const [isFavorite, setIsFavorite] = useState(initialIsFavorite);
   const [saveStatus, setSaveStatus] = useState<"idle" | "success">("idle");
   const [isPending, startTransition] = useTransition();
+  const [isFavoritePending, startFavoriteTransition] = useTransition();
   const router = useRouter();
 
   const isDirty =
@@ -540,6 +530,34 @@ function MangaTrackingFormInner({
     });
   };
 
+  const handleFavoriteToggle = () => {
+    if (isFavoritePending) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("malId", String(malId));
+
+    startFavoriteTransition(async () => {
+      const result = await toggleFavoriteMangaAction(formData);
+
+      if (!result.ok) {
+        if (result.reason === "limit") {
+          toast("You can favorite up to 9 manga.", "danger");
+        }
+
+        return;
+      }
+
+      setIsFavorite(result.favorited);
+      toast(
+        result.favorited ? "Added to favorites" : "Removed from favorites",
+        result.favorited ? "success" : "danger",
+      );
+      router.refresh();
+    });
+  };
+
   return (
     <form onSubmit={handleSubmit} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       <input name="malId" type="hidden" value={String(malId)} />
@@ -597,6 +615,19 @@ function MangaTrackingFormInner({
         <span>{maxChapters ? `Max chapters: ${maxChapters}` : "Chapter total not confirmed."}</span>
         <div className="flex w-full items-center justify-end gap-3 md:w-auto">
           <button
+            type="button"
+            onClick={handleFavoriteToggle}
+            aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+            disabled={isFavoritePending}
+            className={`button flex h-11 w-11 shrink-0 items-center justify-center border px-0 transition-colors ${
+              isFavorite
+                ? "border-[#f3c96a]/50 bg-[#f3c96a]/12 text-[#f3c96a]"
+                : "border-[#2b2b2b] bg-[#1c1c1c] text-muted hover:text-[#f3c96a]"
+            } ${isFavoritePending ? "cursor-wait" : "cursor-pointer"}`}
+          >
+            <Star width={18} height={18} fill={isFavorite ? "currentColor" : "none"} strokeWidth={2} />
+          </button>
+          <button
             type="submit"
             disabled={!canSubmit || isPending || saveStatus === "success"}
             className={`button flex h-11 w-full items-center justify-center overflow-hidden px-4 text-sm leading-[1.2] transition-all duration-300 ${
@@ -609,9 +640,7 @@ function MangaTrackingFormInner({
           >
             {saveStatus === "success" ? (
               <>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+                <Check width={16} height={16} strokeWidth={2.5} />
                 <span className="text-sm font-medium">Saved</span>
               </>
             ) : isPending ? (
@@ -625,10 +654,7 @@ function MangaTrackingFormInner({
 
       {saveStatus === "success" && (
         <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[500] flex items-center gap-3 bg-[#131b14] border border-[#238636]/40 px-5 py-3 rounded shadow-2xl animate-fade-in-up text-[14px] font-medium text-foreground">
-          <svg className="text-primary" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-            <polyline points="22 4 12 14.01 9 11.01"/>
-          </svg>
+          <CheckCircle className="text-primary" width={18} height={18} strokeWidth={2.5} />
           Entry saved.
         </div>
       )}
@@ -646,6 +672,7 @@ export function MangaTrackingForm(props: Omit<MangaTrackingModalProps, "title">)
     props.defaultVolumes,
     props.maxChapters ?? "none",
     props.maxVolumes ?? "none",
+    props.initialIsFavorite ? "favorite" : "not-favorite",
   ].join(":");
 
   return <MangaTrackingFormInner key={resetKey} {...props} />;
@@ -673,7 +700,7 @@ export function AnimeTrackingModal({ malId, title, imageUrl, titleJapanese, acti
   );
 }
 
-export function MangaTrackingModal({ malId, title, imageUrl, titleJapanese, action, hasEntry, defaultStatus, defaultScore, defaultChapters, defaultVolumes, maxChapters, maxVolumes }: MangaTrackingModalProps) {
+export function MangaTrackingModal({ malId, title, imageUrl, titleJapanese, action, hasEntry, defaultStatus, defaultScore, defaultChapters, defaultVolumes, maxChapters, maxVolumes, initialIsFavorite }: MangaTrackingModalProps) {
   return (
     <TrackingModalFrame
       modalId="tracking-modal"
@@ -688,6 +715,7 @@ export function MangaTrackingModal({ malId, title, imageUrl, titleJapanese, acti
           defaultStatus={defaultStatus}
           defaultVolumes={defaultVolumes}
           hasEntry={hasEntry}
+          initialIsFavorite={initialIsFavorite}
           malId={malId}
           maxChapters={maxChapters}
           maxVolumes={maxVolumes}

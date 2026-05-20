@@ -175,7 +175,7 @@ export async function signInAction(
 
   if (waitSeconds) {
     return {
-      error: `Too many attempts. Try again em ${waitSeconds}s.`,
+      error: `Too many attempts. Try again in ${waitSeconds}s.`,
     };
   }
 
@@ -235,7 +235,7 @@ export async function signUpAction(
 
   if (waitSeconds) {
     return {
-      error: `Too many attempts. Try again em ${waitSeconds}s.`,
+      error: `Too many attempts. Try again in ${waitSeconds}s.`,
     };
   }
 
@@ -354,7 +354,7 @@ export async function resendVerificationEmailAction(
 
   if (waitSeconds) {
     return {
-      error: `Too many requests. Try again em ${waitSeconds}s.`,
+      error: `Too many requests. Try again in ${waitSeconds}s.`,
       cooldownSeconds: waitSeconds,
     };
   }
@@ -418,7 +418,7 @@ export async function verifyEmailCodeAction(
 
   if (waitSeconds) {
     return {
-      error: `Too many attempts. Try again em ${waitSeconds}s.`,
+      error: `Too many attempts. Try again in ${waitSeconds}s.`,
     };
   }
 

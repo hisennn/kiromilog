@@ -8,7 +8,10 @@ import {
   activities,
   activityLikes,
   animeCache,
+  characterCache,
   favoriteAnime,
+  favoriteCharacters,
+  favoriteManga,
   mangaCache,
   userAnimeList,
   userFollows,
@@ -378,16 +381,21 @@ export async function getProfileLibrary(userId: string, mediaType: "anime" | "ma
       progressVolumes: userMangaList.progressVolumes,
       updatedAt: userMangaList.updatedAt,
       payload: mangaCache.payload,
+      favoriteMalId: favoriteManga.malId,
     })
     .from(userMangaList)
     .leftJoin(mangaCache, eq(mangaCache.malId, userMangaList.malId))
+    .leftJoin(
+      favoriteManga,
+      and(eq(favoriteManga.userId, userId), eq(favoriteManga.malId, userMangaList.malId)),
+    )
     .where(eq(userMangaList.userId, userId))
     .orderBy(desc(userMangaList.updatedAt));
 }
 
 export async function getProfileFavoriteAnime(
   userId: string,
-  limit = 12,
+  limit = 9,
   options?: { includeAdultContent?: boolean },
 ) {
   void options;
@@ -405,6 +413,50 @@ export async function getProfileFavoriteAnime(
     .leftJoin(animeCache, eq(animeCache.malId, favoriteAnime.malId))
     .where(eq(favoriteAnime.userId, userId))
     .orderBy(asc(favoriteAnime.position), asc(favoriteAnime.createdAt))
+    .limit(limit);
+
+  return favorites;
+}
+
+export async function getProfileFavoriteManga(
+  userId: string,
+  limit = 9,
+  options?: { includeAdultContent?: boolean },
+) {
+  void options;
+
+  const favorites = await db
+    .select({
+      id: favoriteManga.id,
+      malId: favoriteManga.malId,
+      title: mangaCache.title,
+      imageUrl: mangaCache.imageUrl,
+      position: favoriteManga.position,
+      payload: mangaCache.payload,
+    })
+    .from(favoriteManga)
+    .leftJoin(mangaCache, eq(mangaCache.malId, favoriteManga.malId))
+    .where(eq(favoriteManga.userId, userId))
+    .orderBy(asc(favoriteManga.position), asc(favoriteManga.createdAt))
+    .limit(limit);
+
+  return favorites;
+}
+
+export async function getProfileFavoriteCharacters(userId: string, limit = 9) {
+  const favorites = await db
+    .select({
+      id: favoriteCharacters.id,
+      malId: favoriteCharacters.malId,
+      title: characterCache.name,
+      imageUrl: characterCache.imageUrl,
+      position: favoriteCharacters.position,
+      payload: characterCache.payload,
+    })
+    .from(favoriteCharacters)
+    .leftJoin(characterCache, eq(characterCache.malId, favoriteCharacters.malId))
+    .where(eq(favoriteCharacters.userId, userId))
+    .orderBy(asc(favoriteCharacters.position), asc(favoriteCharacters.createdAt))
     .limit(limit);
 
   return favorites;

@@ -81,7 +81,7 @@ export async function uploadAvatarAction(formData: FormData) {
   }
 
   if (!rateLimit.allowed) {
-    return { ok: false as const, message: "Muitos uploads. Try again mais tarde." };
+    return { ok: false as const, message: "Too many uploads. Try again later." };
   }
 
   const file = formData.get("avatar");

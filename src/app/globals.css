@@ -1848,3 +1848,9 @@ a.search-result-tracked-copy:hover {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+.character-card {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}

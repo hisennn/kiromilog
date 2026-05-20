@@ -4,6 +4,7 @@ const JIKAN_BASE_URL = "https://api.jikan.moe/v4";
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 type SearchMediaType = "anime" | "manga";
+type SearchCharacterType = "characters";
 
 type JikanImageSet = {
   jpg?: {
@@ -32,6 +33,7 @@ type JikanSearchItem = {
 
 type JikanSearchResponse = {
   data: JikanSearchItem[];
+  pagination?: JikanPagination;
 };
 
 type JikanFullResponse = {
@@ -43,6 +45,59 @@ type JikanFullResponse = {
     synopsis?: string | null;
     images?: JikanImageSet;
   };
+};
+
+type JikanPagination = {
+  last_visible_page?: number;
+  has_next_page?: boolean;
+  current_page?: number;
+  items?: {
+    count?: number;
+    total?: number;
+    per_page?: number;
+  };
+};
+
+type JikanCharacterItem = {
+  mal_id: number;
+  name: string;
+  name_kanji?: string | null;
+  nicknames?: string[];
+  about?: string | null;
+  images?: JikanImageSet;
+  favorites?: number | null;
+};
+
+type JikanCharacterSearchResponse = {
+  data: JikanCharacterItem[];
+  pagination?: JikanPagination;
+};
+
+type JikanCharacterFullResponse = {
+  data: JikanCharacterItem & {
+    anime?: Array<{ anime?: { mal_id: number; title: string; images?: JikanImageSet } }>;
+    manga?: Array<{ manga?: { mal_id: number; title: string; images?: JikanImageSet } }>;
+    voices?: Array<{
+      language?: string | null;
+      person?: {
+        mal_id: number;
+        name: string;
+        images?: JikanImageSet;
+      };
+    }>;
+  };
+};
+
+type JikanMediaCharacterResponse = {
+  data: Array<{
+    role?: string | null;
+    favorites?: number | null;
+    character: {
+      mal_id: number;
+      name: string;
+      images?: JikanImageSet;
+    };
+  }>;
 };
 
 function resolveImage(images?: JikanImageSet) {
@@ -91,11 +146,21 @@ async function fetchFromJikan<T>(path: string, searchParams?: URLSearchParams) {
 export async function searchMedia(
   query: string,
   mediaType: SearchMediaType,
-  options?: { includeAdultContent?: boolean },
+  options?: { includeAdultContent?: boolean; limit?: number; page?: number },
+) {
+  const result = await searchMediaPage(query, mediaType, options);
+  return result.items;
+}
+
+export async function searchMediaPage(
+  query: string,
+  mediaType: SearchMediaType,
+  options?: { includeAdultContent?: boolean; limit?: number; page?: number },
 ) {
   const params = new URLSearchParams({
     q: query,
-    limit: "8",
+    limit: String(options?.limit ?? 8),
+    page: String(options?.page ?? 1),
   });
 
   if (!options?.includeAdultContent) {
@@ -117,7 +182,41 @@ export async function searchMedia(
     year: item.year ?? null,
   }));
 
-  return dedupeByMalId(mappedResults);
+  return {
+    items: dedupeByMalId(mappedResults),
+    pagination: normalizePagination(response.pagination, options?.page ?? 1),
+  };
+}
+
+export async function searchCharacters(
+  query: string,
+  options?: { limit?: number; page?: number },
+) {
+  const params = new URLSearchParams({
+    q: query,
+    limit: String(options?.limit ?? 20),
+    page: String(options?.page ?? 1),
+    order_by: "favorites",
+    sort: "desc",
+  });
+  const response = await fetchFromJikan<JikanCharacterSearchResponse>(
+    `/${"characters" satisfies SearchCharacterType}`,
+    params,
+  );
+  const mappedResults = response.data.map((item) => ({
+    malId: item.mal_id,
+    name: item.name,
+    nameKanji: item.name_kanji ?? null,
+    nicknames: item.nicknames ?? [],
+    about: item.about ?? null,
+    imageUrl: resolveImage(item.images),
+    favorites: item.favorites ?? 0,
+  }));
+
+  return {
+    items: dedupeByMalId(mappedResults),
+    pagination: normalizePagination(response.pagination, options?.page ?? 1),
+  };
 }
 
 export async function fetchFullMediaEntry(malId: number, mediaType: SearchMediaType) {
@@ -132,6 +231,46 @@ export async function fetchFullMediaEntry(malId: number, mediaType: SearchMediaT
     synopsis: item.synopsis ?? null,
     imageUrl: resolveImage(item.images),
     payload: item,
+  };
+}
+
+export async function fetchFullCharacterEntry(malId: number) {
+  const response = await fetchFromJikan<JikanCharacterFullResponse>(`/characters/${malId}/full`);
+  const item = response.data;
+
+  return {
+    malId: item.mal_id,
+    name: item.name,
+    nameKanji: item.name_kanji ?? null,
+    imageUrl: resolveImage(item.images),
+    payload: item,
+  };
+}
+
+export async function fetchMediaCharacters(malId: number, mediaType: SearchMediaType) {
+  const response = await fetchFromJikan<JikanMediaCharacterResponse>(`/${mediaType}/${malId}/characters`);
+
+  return dedupeByMalId(
+    response.data
+      .map((item) => ({
+        malId: item.character.mal_id,
+        name: item.character.name,
+        imageUrl: resolveImage(item.character.images),
+        role: item.role ?? null,
+        favorites: item.favorites ?? 0,
+      }))
+      .sort((left, right) => (right.favorites ?? 0) - (left.favorites ?? 0)),
+  );
+}
+
+function normalizePagination(pagination: JikanPagination | undefined, fallbackPage: number) {
+  return {
+    currentPage: pagination?.current_page ?? fallbackPage,
+    lastPage: Math.max(1, pagination?.last_visible_page ?? fallbackPage),
+    hasNextPage: pagination?.has_next_page ?? false,
+    total: pagination?.items?.total ?? null,
+    count: pagination?.items?.count ?? null,
+    perPage: pagination?.items?.per_page ?? null,
   };
 }
 

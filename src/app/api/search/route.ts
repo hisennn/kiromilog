@@ -2,8 +2,8 @@ import { and, count, eq, ilike, inArray, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
-import { favoriteAnime, userAnimeList, userFollows, userMangaList, users } from "@/lib/db/schema";
-import { searchMedia } from "@/lib/jikan/client";
+import { favoriteAnime, favoriteManga, userAnimeList, userFollows, userMangaList, users } from "@/lib/db/schema";
+import { searchCharacters, searchMedia } from "@/lib/jikan/client";
 import {
   consumeRateLimit,
   getClientIpFromRequest,
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
 
   if (!rateLimit.allowed) {
     return NextResponse.json(
-      { error: "Muitas buscas. Try again mais tarde." },
+      { error: "Too many searches. Try again later." },
       {
         status: 429,
         headers: {
@@ -72,7 +72,7 @@ export async function GET(request: Request) {
   const parsedQuery = navbarSearchSchema.safeParse({ q: searchParams.get("q") ?? "" });
 
   if (!parsedQuery.success || parsedQuery.data.q.length < 2) {
-    return NextResponse.json({ anime: [], manga: [], users: [] });
+    return NextResponse.json({ anime: [], manga: [], characters: [], users: [] });
   }
 
   const query = parsedQuery.data.q;
@@ -82,19 +82,20 @@ export async function GET(request: Request) {
     const includeAdultContent = viewer?.showAdultContent ?? false;
     const anime = await searchMedia(query, "anime", { includeAdultContent });
     await new Promise((resolve) => setTimeout(resolve, 350));
-    const [manga, userResults] = await Promise.all([
+    const [manga, characters, userResults] = await Promise.all([
       searchMedia(query, "manga", { includeAdultContent }),
+      searchCharacters(query, { limit: 8 }),
       searchUsers(query),
     ]);
 
     if (!viewer) {
-      return NextResponse.json({ anime, manga, users: userResults });
+      return NextResponse.json({ anime, manga, characters: characters.items, users: userResults });
     }
 
     const animeIds = anime.map((item) => item.malId);
     const mangaIds = manga.map((item) => item.malId);
 
-    const [animeEntries, mangaEntries, favoriteAnimeEntries] = await Promise.all([
+    const [animeEntries, mangaEntries, favoriteAnimeEntries, favoriteMangaEntries] = await Promise.all([
       animeIds.length
         ? db
             .select({
@@ -136,11 +137,20 @@ export async function GET(request: Request) {
             .from(favoriteAnime)
             .where(and(eq(favoriteAnime.userId, viewer.id), inArray(favoriteAnime.malId, animeIds)))
         : Promise.resolve([]),
+      mangaIds.length
+        ? db
+            .select({
+              malId: favoriteManga.malId,
+            })
+            .from(favoriteManga)
+            .where(and(eq(favoriteManga.userId, viewer.id), inArray(favoriteManga.malId, mangaIds)))
+        : Promise.resolve([]),
     ]);
 
     const animeEntryMap = new Map(animeEntries.map((entry) => [entry.malId, entry]));
     const mangaEntryMap = new Map(mangaEntries.map((entry) => [entry.malId, entry]));
     const favoriteAnimeIds = new Set(favoriteAnimeEntries.map((entry) => entry.malId));
+    const favoriteMangaIds = new Set(favoriteMangaEntries.map((entry) => entry.malId));
 
     return NextResponse.json({
       anime: anime.map((item) => ({
@@ -151,10 +161,12 @@ export async function GET(request: Request) {
       manga: manga.map((item) => ({
         ...item,
         libraryEntry: mangaEntryMap.get(item.malId) ?? null,
+        isFavorite: favoriteMangaIds.has(item.malId),
       })),
+      characters: characters.items,
       users: userResults,
     });
   } catch {
-    return NextResponse.json({ anime: [], manga: [], users: [] }, { status: 502 });
+    return NextResponse.json({ anime: [], manga: [], characters: [], users: [] }, { status: 502 });
   }
 }

@@ -2,10 +2,12 @@ import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/app/app-header";
+import { MediaCharactersSection } from "@/components/characters/media-characters-section";
 import { saveAnimeEntryAction } from "@/lib/library-actions";
 import { AnimeTrackingModal } from "@/components/library/tracking-modal";
 import { QuickTrackingDropdown } from "@/components/library/quick-tracking-dropdown";
 import { isExplicitMediaPayload } from "@/lib/content-preferences";
+import { fetchMediaCharacters } from "@/lib/jikan/client";
 import { getMediaDetail, getViewerAnimeEntry, getViewerAnimeFavorite } from "@/lib/media-data";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
@@ -34,10 +36,11 @@ export default async function AnimeDetailPage({ params }: AnimePageProps) {
     notFound();
   }
 
-  const [media, entry, isFavorite] = await Promise.all([
+  const [media, entry, isFavorite, characters] = await Promise.all([
     getMediaDetail(malId, "anime"),
     getViewerAnimeEntry(viewer.id, malId),
     getViewerAnimeFavorite(viewer.id, malId),
+    fetchMediaCharacters(malId, "anime").catch(() => []),
   ]);
 
   const payload = media.payload as {
@@ -153,6 +156,8 @@ export default async function AnimeDetailPage({ params }: AnimePageProps) {
               {media.synopsis || "No synopsis on Jikan."}
             </p>
           </section>
+
+          <MediaCharactersSection characters={characters} castHref={`/anime/${media.malId}/characters`} />
         </div>
       </section>
 
