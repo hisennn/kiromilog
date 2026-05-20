@@ -43,11 +43,9 @@
     "typescript": "6.0.3"
   },
   "overrides": {
-    "@better-auth/passkey": "1.6.11",
     "@esbuild-kit/core-utils": {
       "esbuild": "^0.25.12"
     },
-    "better-auth": "1.6.11",
     "postcss": "^8.5.12",
     "uuid": "^14.0.0"
   }
