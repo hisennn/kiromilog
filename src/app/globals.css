@@ -1401,6 +1401,7 @@ a.search-result-tracked-copy:hover {
 .profile-follow-button,
 .profile-message-button {
   min-height: 2.55rem;
+  cursor: pointer;
 }
 
 .profile-following-button {
