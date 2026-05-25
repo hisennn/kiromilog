@@ -30,7 +30,7 @@ export function AdultContentSettingsPanel({
         return;
       }
 
-      toast(nextValue ? "NSFW content ativado." : "NSFW content desativado.");
+      toast(nextValue ? "NSFW content enabled." : "NSFW content disabled.");
       router.refresh();
     });
   };
@@ -48,7 +48,7 @@ export function AdultContentSettingsPanel({
         <div className="space-y-1">
           <p className="text-sm font-medium text-foreground">Show NSFW content</p>
           <p className="text-xs leading-5 text-muted">
-            Quando desligado, anime e manga explicitos ficam ocultos em busca, paginas, feed e perfil.
+            When disabled, explicit anime and manga are hidden from search, pages, feed, and profiles.
           </p>
         </div>
 
