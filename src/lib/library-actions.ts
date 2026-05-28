@@ -4,7 +4,7 @@ import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db } from "@/lib/db";
+import { db, sql } from "@/lib/db";
 import {
   activities,
   animeCache,
@@ -178,6 +178,70 @@ async function normalizeFavoritePositions(
         .where(eq(table.id, row.id));
     }
   }
+}
+
+async function reorderFavoritePositions(
+  userId: string,
+  tableName: "favorite_anime" | "favorite_manga",
+  ids: string[],
+) {
+  await sql.transaction((tx) => [
+    ...ids.map((id, index) =>
+      tx.query(
+        `UPDATE ${tableName} SET position = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3`,
+        [-(index + 1), id, userId],
+      ),
+    ),
+    ...ids.map((id, index) =>
+      tx.query(
+        `UPDATE ${tableName} SET position = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3`,
+        [index + 1, id, userId],
+      ),
+    ),
+  ]);
+}
+
+async function saveFavoriteOrder(
+  input: {
+    ids: string[];
+    table: typeof favoriteAnime | typeof favoriteManga;
+    tableName: "favorite_anime" | "favorite_manga";
+    action: string;
+  },
+) {
+  const profile = await ensureViewerProfile({ allowCookieMutation: true });
+
+  if (!profile) {
+    redirect("/auth/sign-in");
+  }
+
+  if (!input.ids.length || input.ids.length > FAVORITE_LIMIT) {
+    return false;
+  }
+
+  if (new Set(input.ids).size !== input.ids.length) {
+    return false;
+  }
+
+  if (!(await canMutateLibrary(profile.id, input.action))) {
+    return false;
+  }
+
+  const rows = await db
+    .select({ id: input.table.id })
+    .from(input.table)
+    .where(eq(input.table.userId, profile.id));
+
+  const existingIds = new Set(rows.map((row) => row.id));
+
+  if (rows.length !== input.ids.length || input.ids.some((id) => !existingIds.has(id))) {
+    return false;
+  }
+
+  await reorderFavoritePositions(profile.id, input.tableName, input.ids);
+  revalidatePath(`/u/${profile.username}`);
+
+  return true;
 }
 
 export async function saveAnimeEntryAction(formData: FormData) {
@@ -441,6 +505,24 @@ export async function toggleFavoriteMangaAction(
   }
 
   return ok ? { ok: true, favorited } : { ok: false, reason };
+}
+
+export async function saveFavoriteAnimeOrderAction(ids: string[]) {
+  return saveFavoriteOrder({
+    ids,
+    table: favoriteAnime,
+    tableName: "favorite_anime",
+    action: "reorder-favorite-anime",
+  });
+}
+
+export async function saveFavoriteMangaOrderAction(ids: string[]) {
+  return saveFavoriteOrder({
+    ids,
+    table: favoriteManga,
+    tableName: "favorite_manga",
+    action: "reorder-favorite-manga",
+  });
 }
 
 export async function saveMangaEntryAction(formData: FormData) {

@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/app/app-header";
+import { FavoriteGrid } from "@/components/profile/favorite-grid";
 import { ProfileContent } from "@/components/profile/profile-content";
 import { ProfileSocialActions } from "@/components/profile/profile-social-actions";
 
@@ -34,15 +35,6 @@ type ProfilePageProps = {
 };
 
 type ProfileView = "timeline" | "anime" | "manga" | "followers" | "following";
-
-type FavoriteGridItem = {
-  id: string;
-  malId: number;
-  title: string | null;
-  imageUrl: string | null;
-  href: string;
-  isExplicitBlocked?: boolean;
-};
 
 function getProfileView(input?: string): ProfileView {
   if (
@@ -108,56 +100,6 @@ export async function generateMetadata({ params }: ProfilePageProps): Promise<Me
     title: `@${profile.username}`,
     description: profile.bio ?? `${profile.nickname}'s Kiromilog profile.`,
   };
-}
-
-function FavoriteGrid({
-  title,
-  items,
-  fallbackLabel,
-}: {
-  title: string;
-  items: FavoriteGridItem[];
-  fallbackLabel: string;
-}) {
-  if (!items.length) {
-    return null;
-  }
-
-  return (
-    <div className="animate-fade-in-up animate-delay-200 pt-2">
-      <h2 className="font-display text-lg text-foreground mb-3">{title}</h2>
-      <div className="grid grid-cols-3 gap-1.5">
-        {items.map((fav) => (
-          <Link
-            key={fav.id}
-            href={fav.href}
-            className="fav-card relative aspect-[3/4] w-full bg-surface-strong transition-opacity hover:opacity-80"
-            aria-label={fav.title ?? `${fallbackLabel} ${fav.malId}`}
-            data-title={fav.title ?? `${fallbackLabel} ${fav.malId}`}
-          >
-            <span className="absolute inset-0 overflow-hidden">
-              {fav.imageUrl && (
-                <Image
-                  alt={fav.title ?? ""}
-                  className={`object-cover ${
-                    fav.isExplicitBlocked ? "scale-110 blur-sm opacity-50" : ""
-                  }`}
-                  fill
-                  sizes="80px"
-                  src={fav.imageUrl}
-                />
-              )}
-              {fav.isExplicitBlocked ? (
-                <span className="absolute inset-0 grid place-items-center bg-black/35 text-[10px] font-bold uppercase tracking-[0.2em] text-white">
-                  +18
-                </span>
-              ) : null}
-            </span>
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 export default async function ProfilePage({ params, searchParams }: ProfilePageProps) {
@@ -400,9 +342,30 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
             </div>
           </div>
 
-          <FavoriteGrid title="Fav anime" items={mappedFavoriteAnime} fallbackLabel="Anime" />
-          <FavoriteGrid title="Fav manga" items={mappedFavoriteManga} fallbackLabel="Manga" />
-          <FavoriteGrid title="Fav characters" items={mappedFavoriteCharacters} fallbackLabel="Character" />
+          <FavoriteGrid
+            key={`anime-${mappedFavoriteAnime.map((fav) => fav.id).join("-")}`}
+            title="Fav anime"
+            items={mappedFavoriteAnime}
+            fallbackLabel="Anime"
+            kind="anime"
+            canEdit={canEditProfile}
+          />
+          <FavoriteGrid
+            key={`manga-${mappedFavoriteManga.map((fav) => fav.id).join("-")}`}
+            title="Fav manga"
+            items={mappedFavoriteManga}
+            fallbackLabel="Manga"
+            kind="manga"
+            canEdit={canEditProfile}
+          />
+          <FavoriteGrid
+            key={`characters-${mappedFavoriteCharacters.map((fav) => fav.id).join("-")}`}
+            title="Fav characters"
+            items={mappedFavoriteCharacters}
+            fallbackLabel="Character"
+            kind="characters"
+            canEdit={canEditProfile}
+          />
         </aside>
 
         <section className="lg:col-span-3 space-y-6">
