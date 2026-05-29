@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "test": "tsx --conditions react-server --test \"src/**/*.test.ts\"",
     "start": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
@@ -26,6 +27,7 @@
     "pusher-js": "^8.5.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "server-only": "^0.0.1",
     "uploadthing": "^7.7.4",
     "zod": "^4.4.3"
   },

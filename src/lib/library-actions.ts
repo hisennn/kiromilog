@@ -7,10 +7,8 @@ import { redirect } from "next/navigation";
 import { db, sql } from "@/lib/db";
 import {
   activities,
-  animeCache,
   favoriteAnime,
   favoriteManga,
-  mangaCache,
   userAnimeList,
   userMangaList,
 } from "@/lib/db/schema";
@@ -122,7 +120,7 @@ function invalidateLibraryViews(username: string, mediaType: "anime" | "manga", 
 
 async function canMutateLibrary(userId: string, action: string) {
   const ip = await getClientIpFromCurrentRequest();
-  const rateLimit = consumeRateLimit({
+  const rateLimit = await consumeRateLimit({
     key: `library:${action}:${ip}:${userId}`,
     limit: 90,
     windowMs: 60 * 1000,
@@ -682,43 +680,6 @@ export async function deleteLibraryEntryAction(formData: FormData) {
     );
 
   invalidateLibraryViews(profile.username, mediaType, malId);
-}
-
-export async function getRecentLibrary(userId: string) {
-  const anime = await db
-    .select({
-      id: userAnimeList.id,
-      mediaType: userAnimeList.status,
-      malId: userAnimeList.malId,
-      updatedAt: userAnimeList.updatedAt,
-      title: animeCache.title,
-    })
-    .from(userAnimeList)
-    .leftJoin(animeCache, eq(animeCache.malId, userAnimeList.malId))
-    .where(eq(userAnimeList.userId, userId))
-    .orderBy(desc(userAnimeList.updatedAt))
-    .limit(4);
-
-  const manga = await db
-    .select({
-      id: userMangaList.id,
-      mediaType: userMangaList.status,
-      malId: userMangaList.malId,
-      updatedAt: userMangaList.updatedAt,
-      title: mangaCache.title,
-    })
-    .from(userMangaList)
-    .leftJoin(mangaCache, eq(mangaCache.malId, userMangaList.malId))
-    .where(eq(userMangaList.userId, userId))
-    .orderBy(desc(userMangaList.updatedAt))
-    .limit(4);
-
-  return [
-    ...anime.map((item) => ({ ...item, kind: "anime" as const })),
-    ...manga.map((item) => ({ ...item, kind: "manga" as const })),
-  ]
-    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
-    .slice(0, 6);
 }
 
 

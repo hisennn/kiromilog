@@ -7,11 +7,25 @@ import { redirect } from "next/navigation";
 
 import { env } from "@/lib/env";
 
-export const auth = createNeonAuth({
-  baseUrl: env.NEON_AUTH_BASE_URL,
-  cookies: {
-    secret: env.NEON_AUTH_COOKIE_SECRET,
-    sessionDataTtl: 300,
+type NeonAuth = ReturnType<typeof createNeonAuth>;
+
+let authClient: NeonAuth | null = null;
+
+export function getAuth() {
+  authClient ??= createNeonAuth({
+    baseUrl: env.NEON_AUTH_BASE_URL,
+    cookies: {
+      secret: env.NEON_AUTH_COOKIE_SECRET,
+      sessionDataTtl: 300,
+    },
+  });
+
+  return authClient;
+}
+
+export const auth = new Proxy({} as NeonAuth, {
+  get(_target, property: keyof NeonAuth) {
+    return getAuth()[property];
   },
 });
 

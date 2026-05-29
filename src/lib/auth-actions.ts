@@ -138,7 +138,7 @@ async function checkAuthRateLimit(
   windowMs: number,
 ) {
   const ip = await getClientIpFromCurrentRequest();
-  const result = consumeRateLimit({
+  const result = await consumeRateLimit({
     key: `auth:${action}:${ip}:${identity.toLowerCase()}`,
     limit,
     windowMs,

@@ -11,7 +11,7 @@ import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 export async function POST(request: Request) {
   const ip = getClientIpFromRequest(request);
-  const rateLimit = consumeRateLimit({
+  const rateLimit = await consumeRateLimit({
     key: `api:pusher-auth:${ip}`,
     limit: 120,
     windowMs: 60 * 1000,

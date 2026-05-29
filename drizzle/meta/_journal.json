@@ -43,6 +43,13 @@
       "when": 1778566334468,
       "tag": "0005_stale_spiral",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780082568427,
+      "tag": "0006_supreme_captain_flint",
+      "breakpoints": true
     }
   ]
 }

@@ -6,7 +6,7 @@ import { ChatRoom } from "@/components/chat/chat-room";
 import { MessageThreadList } from "@/components/chat/message-thread-list";
 import { getThreadForViewer, getThreadMessages, getThreadPeer, getViewerThreads } from "@/lib/chat";
 import { env } from "@/lib/env";
-import { getFollowState } from "@/lib/social-actions";
+import { getFollowState } from "@/lib/social";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 type ChatPageProps = {

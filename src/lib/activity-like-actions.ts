@@ -41,7 +41,7 @@ export async function toggleActivityLikeAction(
     return { ok: false, error: "invalid" };
   }
 
-  const rateLimit = consumeRateLimit({
+  const rateLimit = await consumeRateLimit({
     key: `activity:like:${ip}:${viewer.id}`,
     limit: 90,
     windowMs: 60 * 1000,

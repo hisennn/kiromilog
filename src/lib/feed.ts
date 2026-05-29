@@ -19,6 +19,7 @@ import {
   users,
 } from "@/lib/db/schema";
 import { ActivityPayload } from "@/lib/media-payload";
+import { toSafeMediaDisplay } from "@/lib/media-display";
 
 export function formatRelativeTime(date: Date) {
   const deltaSeconds = Math.floor((date.getTime() - Date.now()) / 1000);
@@ -63,13 +64,17 @@ function mapActivity(item: {
 }) {
   const payload = item.payload as ActivityPayload;
   const isExplicitBlocked = item.isExplicitBlocked ?? false;
+  const mediaDisplay = toSafeMediaDisplay({
+    isBlocked: isExplicitBlocked,
+    title: payload.title ?? `MAL ${item.mediaMalId ?? "?"}`,
+    imageUrl: payload.imageUrl ?? null,
+    blockedTitle: "NSFW content",
+  });
 
   return {
     ...item,
-    title: isExplicitBlocked
-      ? "NSFW content"
-      : payload.title ?? `MAL ${item.mediaMalId ?? "?"}`,
-    imageUrl: payload.imageUrl ?? null,
+    title: mediaDisplay.title ?? `MAL ${item.mediaMalId ?? "?"}`,
+    imageUrl: mediaDisplay.imageUrl,
     likeCount: item.likeCount ?? 0,
     isLikedByViewer: item.isLikedByViewer ?? false,
     isExplicitBlocked,

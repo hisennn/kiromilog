@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://user:password@example.com/neondb?sslmode=require
+      NEON_AUTH_BASE_URL: https://example.neonauth.sa-east-1.aws.neon.tech/neondb/auth
+      NEON_AUTH_COOKIE_SECRET: ci-secret-ci-secret-ci-secret-ci-secret
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      PUSHER_APP_ID: ""
+      PUSHER_APP_KEY: ""
+      PUSHER_APP_SECRET: ""
+      NEXT_PUBLIC_PUSHER_APP_KEY: ""
+      NEXT_PUBLIC_PUSHER_CLUSTER: ""
+      UPLOADTHING_TOKEN: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Audit
+        run: npm audit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build

@@ -2,6 +2,8 @@ import "server-only";
 
 import { headers } from "next/headers";
 
+import { sql } from "@/lib/db";
+
 type RateLimitOptions = {
   key: string;
   limit: number;
@@ -37,7 +39,68 @@ function cleanupBuckets(currentTime: number) {
   }
 }
 
-export function consumeRateLimit({
+function normalizeRateLimitRows(result: unknown) {
+  if (Array.isArray(result)) {
+    return result as Array<{ count: number; reset_at: Date | string }>;
+  }
+
+  if (result && typeof result === "object" && "rows" in result) {
+    return (result as { rows: Array<{ count: number; reset_at: Date | string }> }).rows;
+  }
+
+  return [];
+}
+
+async function consumeDatabaseRateLimit({
+  key,
+  limit,
+  windowMs,
+}: RateLimitOptions): Promise<RateLimitResult> {
+  const resetAt = new Date(now() + windowMs);
+  const result = await sql.query(
+    `
+      INSERT INTO rate_limit_buckets (key, count, reset_at, updated_at)
+      VALUES ($1, 1, $3, NOW())
+      ON CONFLICT (key) DO UPDATE
+      SET
+        count = CASE
+          WHEN rate_limit_buckets.reset_at <= NOW() THEN 1
+          WHEN rate_limit_buckets.count < $2 THEN rate_limit_buckets.count + 1
+          ELSE rate_limit_buckets.count
+        END,
+        reset_at = CASE
+          WHEN rate_limit_buckets.reset_at <= NOW() THEN $3
+          ELSE rate_limit_buckets.reset_at
+        END,
+        updated_at = NOW()
+      RETURNING count, reset_at
+    `,
+    [key, limit, resetAt],
+  );
+  const row = normalizeRateLimitRows(result)[0];
+
+  if (!row) {
+    return {
+      allowed: false,
+      remaining: 0,
+      resetAt: resetAt.getTime(),
+    };
+  }
+
+  const count = Number(row.count);
+  const rowResetAt =
+    row.reset_at instanceof Date
+      ? row.reset_at.getTime()
+      : new Date(row.reset_at).getTime();
+
+  return {
+    allowed: count <= limit,
+    remaining: Math.max(0, limit - count),
+    resetAt: rowResetAt,
+  };
+}
+
+function consumeMemoryRateLimit({
   key,
   limit,
   windowMs,
@@ -73,6 +136,14 @@ export function consumeRateLimit({
     remaining: Math.max(0, limit - current.count),
     resetAt: current.resetAt,
   };
+}
+
+export async function consumeRateLimit(options: RateLimitOptions): Promise<RateLimitResult> {
+  try {
+    return await consumeDatabaseRateLimit(options);
+  } catch {
+    return consumeMemoryRateLimit(options);
+  }
 }
 
 export function getClientIpFromHeaders(headerStore: Headers) {

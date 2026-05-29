@@ -19,7 +19,7 @@ import {
   consumeRateLimit,
   getClientIpFromCurrentRequest,
 } from "@/lib/rate-limit";
-import { isMutualFollow } from "@/lib/social-actions";
+import { isMutualFollow } from "@/lib/social";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 const messageSchema = z.object({
@@ -30,7 +30,7 @@ const messageSchema = z.object({
 export async function startChatAction(formData: FormData) {
   const viewer = await ensureViewerProfile({ allowCookieMutation: true });
   const ip = await getClientIpFromCurrentRequest();
-  const rateLimit = consumeRateLimit({
+  const rateLimit = await consumeRateLimit({
     key: `chat:start:${ip}:${viewer.id}`,
     limit: 30,
     windowMs: 60 * 1000,
@@ -78,7 +78,7 @@ export async function sendChatMessageAction(
     return { ok: false, error: "invalid" };
   }
 
-  const rateLimit = consumeRateLimit({
+  const rateLimit = await consumeRateLimit({
     key: `chat:send:${ip}:${viewer.id}:${parsed.data.threadId}`,
     limit: 45,
     windowMs: 60 * 1000,
@@ -159,7 +159,7 @@ export async function sendChatMessageAction(
 export async function refreshChatMessagesAction(threadId: string) {
   const viewer = await ensureViewerProfile({ allowCookieMutation: true });
   const ip = await getClientIpFromCurrentRequest();
-  const rateLimit = consumeRateLimit({
+  const rateLimit = await consumeRateLimit({
     key: `chat:refresh:${ip}:${viewer.id}:${threadId}`,
     limit: 90,
     windowMs: 60 * 1000,

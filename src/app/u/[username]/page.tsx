@@ -21,7 +21,8 @@ import {
   isLibraryEntryExplicit,
 } from "@/lib/feed";
 import { AnimeCachePayload, MangaCachePayload } from "@/lib/media-payload";
-import { getFollowState } from "@/lib/social-actions";
+import { toSafeMediaDisplay } from "@/lib/media-display";
+import { getFollowState } from "@/lib/social";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 type ProfilePageProps = {
@@ -167,14 +168,20 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
   const mappedAnimeLibrary = visibleAnimeLibrary.map((entry) => {
     const isExplicitBlocked =
       !includeAdultContent && isLibraryEntryExplicit(entry, "anime");
+    const mediaDisplay = toSafeMediaDisplay({
+      isBlocked: isExplicitBlocked,
+      title: entry.title,
+      imageUrl: entry.imageUrl,
+      blockedTitle: "NSFW content",
+    });
 
     return {
       isExplicitBlocked,
       id: entry.id,
       status: entry.status,
       malId: entry.malId,
-      title: isExplicitBlocked ? "NSFW content" : entry.title,
-      imageUrl: entry.imageUrl,
+      title: mediaDisplay.title,
+      imageUrl: mediaDisplay.imageUrl,
       score: entry.score,
       progress: entry.progress,
       type: (entry.payload as AnimeCachePayload | null)?.type ?? null,
@@ -186,14 +193,20 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
   const mappedMangaLibrary = visibleMangaLibrary.map((entry) => {
     const isExplicitBlocked =
       !includeAdultContent && isLibraryEntryExplicit(entry, "manga");
+    const mediaDisplay = toSafeMediaDisplay({
+      isBlocked: isExplicitBlocked,
+      title: entry.title,
+      imageUrl: entry.imageUrl,
+      blockedTitle: "NSFW content",
+    });
 
     return {
       isExplicitBlocked,
       id: entry.id,
       status: entry.status,
       malId: entry.malId,
-      title: isExplicitBlocked ? "NSFW content" : entry.title,
-      imageUrl: entry.imageUrl,
+      title: mediaDisplay.title,
+      imageUrl: mediaDisplay.imageUrl,
       score: entry.score,
       progress: entry.progress,
       progressVolumes: (entry as { progressVolumes: number }).progressVolumes,
@@ -205,22 +218,36 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
   const mappedFavoriteAnime = favoriteAnime.map((fav) => {
     const isExplicitBlocked =
       !includeAdultContent && isLibraryEntryExplicit(fav, "anime");
+    const mediaDisplay = toSafeMediaDisplay({
+      isBlocked: isExplicitBlocked,
+      title: fav.title,
+      imageUrl: fav.imageUrl,
+      blockedTitle: "NSFW content",
+    });
 
     return {
       ...fav,
       isExplicitBlocked,
-      title: isExplicitBlocked ? "NSFW content" : fav.title,
+      title: mediaDisplay.title,
+      imageUrl: mediaDisplay.imageUrl,
       href: isExplicitBlocked ? "/settings" : `/anime/${fav.malId}`,
     };
   });
   const mappedFavoriteManga = favoriteManga.map((fav) => {
     const isExplicitBlocked =
       !includeAdultContent && isLibraryEntryExplicit(fav, "manga");
+    const mediaDisplay = toSafeMediaDisplay({
+      isBlocked: isExplicitBlocked,
+      title: fav.title,
+      imageUrl: fav.imageUrl,
+      blockedTitle: "NSFW content",
+    });
 
     return {
       ...fav,
       isExplicitBlocked,
-      title: isExplicitBlocked ? "NSFW content" : fav.title,
+      title: mediaDisplay.title,
+      imageUrl: mediaDisplay.imageUrl,
       href: isExplicitBlocked ? "/settings" : `/manga/${fav.malId}`,
     };
   });

@@ -70,7 +70,7 @@ async function removeUploadedAvatar(avatarPath: string | null | undefined) {
 export async function uploadAvatarAction(formData: FormData) {
   const profile = await ensureViewerProfile({ allowCookieMutation: true });
   const ip = await getClientIpFromCurrentRequest();
-  const rateLimit = consumeRateLimit({
+  const rateLimit = await consumeRateLimit({
     key: `settings:avatar-upload:${ip}:${profile.id}`,
     limit: 10,
     windowMs: 60 * 60 * 1000,
@@ -152,7 +152,7 @@ export async function uploadAvatarAction(formData: FormData) {
 export async function removeAvatarAction() {
   const profile = await ensureViewerProfile({ allowCookieMutation: true });
   const ip = await getClientIpFromCurrentRequest();
-  const rateLimit = consumeRateLimit({
+  const rateLimit = await consumeRateLimit({
     key: `settings:avatar-remove:${ip}:${profile.id}`,
     limit: 30,
     windowMs: 60 * 1000,
@@ -190,7 +190,7 @@ export async function updateAdultContentPreferenceAction(enabled: boolean) {
 
   const profile = await ensureViewerProfile({ allowCookieMutation: true });
   const ip = await getClientIpFromCurrentRequest();
-  const rateLimit = consumeRateLimit({
+  const rateLimit = await consumeRateLimit({
     key: `settings:adult-content:${ip}:${profile.id}`,
     limit: 30,
     windowMs: 60 * 1000,

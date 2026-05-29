@@ -17,7 +17,7 @@ const FAVORITE_LIMIT = 9;
 
 async function canMutateCharacterFavorite(userId: string, action = "favorite") {
   const ip = await getClientIpFromCurrentRequest();
-  const rateLimit = consumeRateLimit({
+  const rateLimit = await consumeRateLimit({
     key: `character:${action}:${ip}:${userId}`,
     limit: 60,
     windowMs: 60 * 1000,

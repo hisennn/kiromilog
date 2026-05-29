@@ -80,6 +80,15 @@ export const userFollows = pgTable(
   ],
 );
 
+export const rateLimitBuckets = pgTable("rate_limit_buckets", {
+  key: text("key").primaryKey(),
+  count: integer("count").default(0).notNull(),
+  resetAt: timestamp("reset_at", { withTimezone: true, mode: "date" }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+});
+
 export const chatThreads = pgTable(
   "chat_threads",
   {

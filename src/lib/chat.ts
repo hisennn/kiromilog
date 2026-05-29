@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, asc, desc, eq, or } from "drizzle-orm";
 
-import { isMutualFollow } from "@/lib/social-actions";
+import { isMutualFollow } from "@/lib/social";
 import { db } from "@/lib/db";
 import { chatMessages, chatThreads, users } from "@/lib/db/schema";
 

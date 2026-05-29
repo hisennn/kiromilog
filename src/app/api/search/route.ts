@@ -50,7 +50,7 @@ async function searchUsers(query: string) {
 
 export async function GET(request: Request) {
   const ip = getClientIpFromRequest(request);
-  const rateLimit = consumeRateLimit({
+  const rateLimit = await consumeRateLimit({
     key: `api:search:${ip}`,
     limit: 30,
     windowMs: 60 * 1000,
