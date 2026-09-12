@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import {
   ChatMessageView,
+  clearThreadForViewer,
   getOrCreateThreadForUsers,
   getThreadForViewer,
   getThreadMessages,
@@ -175,5 +176,40 @@ export async function refreshChatMessagesAction(threadId: string) {
     return [];
   }
 
-  return getThreadMessages(thread.id);
+  return getThreadMessages(thread.id, viewer.id);
+}
+
+export async function clearChatHistoryAction(
+  threadId: string,
+): Promise<{ ok: true } | { ok: false; error: "invalid" | "not-found" | "forbidden" }> {
+  const viewer = await ensureViewerProfile({ allowCookieMutation: true });
+  const parsed = z.uuid().safeParse(threadId);
+
+  if (!parsed.success) {
+    return { ok: false, error: "invalid" };
+  }
+
+  const ip = await getClientIpFromCurrentRequest();
+  const rateLimit = await consumeRateLimit({
+    key: `chat:clear:${ip}:${viewer.id}:${parsed.data}`,
+    limit: 10,
+    windowMs: 60 * 1000,
+  });
+
+  if (!rateLimit.allowed) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const thread = await getThreadForViewer(parsed.data, viewer.id);
+
+  if (!thread) {
+    return { ok: false, error: "not-found" };
+  }
+
+  await clearThreadForViewer(thread.id, viewer.id);
+
+  revalidatePath("/messages");
+  revalidatePath(`/messages/${thread.id}`);
+
+  return { ok: true };
 }

@@ -36,7 +36,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
   }
 
   const [messages, threads, followState] = await Promise.all([
-    getThreadMessages(thread.id),
+    getThreadMessages(thread.id, viewer.id),
     getViewerThreads(viewer.id),
     getFollowState(viewer.id, peer.id),
   ]);

@@ -10,10 +10,6 @@ export const mediaSearchSchema = z.object({
   type: z.enum(["anime", "manga", "characters"]),
 });
 
-export const navbarSearchSchema = z.object({
-  q: z.string().trim().min(1).max(100),
-});
-
 export const updateAnimeEntrySchema = z.object({
   malId: z.coerce.number().int().positive(),
   status: z.enum(animeStatusValues),

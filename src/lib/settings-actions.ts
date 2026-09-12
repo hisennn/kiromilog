@@ -11,7 +11,8 @@ import {
   consumeRateLimit,
   getClientIpFromCurrentRequest,
 } from "@/lib/rate-limit";
-import { AVATAR_MAX_UPLOAD_MB } from "@/lib/settings";
+import { AVATAR_MAX_UPLOAD_MB, AVATAR_MAX_DIMENSION_PX } from "@/lib/settings";
+import { getAvatarDimensions } from "@/lib/avatar-image";
 import { isUploadThingConfigured, utapi } from "@/lib/uploadthing";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
@@ -21,6 +22,7 @@ const avatarExtensionsByMimeType = new Map([
   ["image/webp", "webp"],
 ]);
 const adultContentPreferenceSchema = z.boolean();
+const bioSchema = z.string().trim().max(280);
 
 function revalidateViewerRoutes(username: string) {
   revalidatePath("/settings");
@@ -115,6 +117,19 @@ export async function uploadAvatarAction(formData: FormData) {
     return { ok: false as const, message: "Use a valid JPG, PNG, or WEBP image." };
   }
 
+  const dimensions = getAvatarDimensions(fileBuffer, file.type);
+
+  if (!dimensions) {
+    return { ok: false as const, message: "Use a valid JPG, PNG, or WEBP image." };
+  }
+
+  if (dimensions.width > AVATAR_MAX_DIMENSION_PX || dimensions.height > AVATAR_MAX_DIMENSION_PX) {
+    return {
+      ok: false as const,
+      message: `Use an image up to ${AVATAR_MAX_DIMENSION_PX}px on each side.`,
+    };
+  }
+
   const uploadFile = new File(
     [fileBuffer],
     `${profile.id}-${Date.now()}.${extension}`,
@@ -179,6 +194,53 @@ export async function removeAvatarAction() {
   revalidateViewerRoutes(profile.username);
 
   return { ok: true as const };
+}
+
+export async function updateBioAction(formData: FormData) {
+  const profile = await ensureViewerProfile({ allowCookieMutation: true });
+  const ip = await getClientIpFromCurrentRequest();
+  const rateLimit = await consumeRateLimit({
+    key: `settings:bio:${ip}:${profile.id}`,
+    limit: 30,
+    windowMs: 60 * 1000,
+  });
+
+  if (!profile) {
+    redirect("/auth/sign-in");
+  }
+
+  if (!rateLimit.allowed) {
+    return { ok: false as const, message: "Too many requests. Try again later." };
+  }
+
+  const raw = formData.get("bio");
+
+  if (typeof raw !== "string") {
+    return { ok: false as const, message: "Invalid bio." };
+  }
+
+  const parsed = bioSchema.safeParse(raw);
+
+  if (!parsed.success) {
+    return { ok: false as const, message: "Bio must be up to 280 characters." };
+  }
+
+  const bio = parsed.data.length ? parsed.data : null;
+
+  if (bio === (profile.bio ?? null)) {
+    return { ok: true as const, bio };
+  }
+
+  await db
+    .update(users)
+    .set({
+      bio,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, profile.id));
+  revalidateViewerRoutes(profile.username);
+
+  return { ok: true as const, bio };
 }
 
 export async function updateAdultContentPreferenceAction(enabled: boolean) {

@@ -271,7 +271,7 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
             {viewer.username === profile.username ? (
               <Link href="/settings#photo" className="group relative mb-4 block h-36 w-36 shrink-0 overflow-hidden rounded-sm border border-line bg-surface-strong">
                 {profile.avatarUrl ? (
-                  <Image alt={`@${profile.username}`} className="object-cover object-center transition-transform duration-300 group-hover:scale-105" fill loading="eager" sizes="144px" src={profile.avatarUrl} />
+                  <Image alt={`@${profile.username}`} className="object-cover object-center transition-transform duration-300 group-hover:scale-105" fill loading="eager" priority sizes="144px" src={profile.avatarUrl} />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-5xl font-display text-foreground">
                     {profile.username.slice(0, 1).toUpperCase()}
@@ -283,7 +283,7 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
               </Link>
             ) : profile.avatarUrl ? (
               <div className="relative mb-4 h-36 w-36 shrink-0 overflow-hidden rounded-sm border border-line bg-surface-strong">
-                <Image alt={`@${profile.username}`} className="object-cover object-center" fill loading="eager" sizes="144px" src={profile.avatarUrl} />
+                <Image alt={`@${profile.username}`} className="object-cover object-center" fill loading="eager" priority sizes="144px" src={profile.avatarUrl} />
               </div>
             ) : (
               <div className="mb-4 flex h-36 w-36 shrink-0 items-center justify-center rounded-sm border border-line bg-surface-strong text-5xl font-display text-foreground">

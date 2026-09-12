@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { VerifyEmailActions } from "@/components/auth/verify-email-actions";
@@ -9,7 +10,6 @@ import {
   PENDING_VERIFICATION_EMAIL_COOKIE,
   VERIFICATION_RESEND_COOKIE,
 } from "@/lib/auth/verification";
-import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {

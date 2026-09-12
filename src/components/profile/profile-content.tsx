@@ -39,7 +39,6 @@ type LibraryEntry = {
 };
 
 type ProfileConnection = {
-  id: string;
   username: string;
   nickname: string;
   avatarUrl: string | null;
@@ -142,7 +141,7 @@ function ProfileConnectionGrid({
           className="profile-person-card animate-fade-in-up"
           data-title={`@${profile.username}`}
           href={`/u/${profile.username}`}
-          key={profile.id}
+          key={profile.username}
           style={{ animationDelay: `${(index + 3) * 50}ms` }}
         >
           <span className="profile-person-avatar">

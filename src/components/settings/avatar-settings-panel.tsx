@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { toast } from "@/components/app/toaster";
 import { removeAvatarAction, uploadAvatarAction } from "@/lib/settings-actions";
-import { AVATAR_MAX_UPLOAD_MB } from "@/lib/settings";
+import { AVATAR_MAX_DIMENSION_PX, AVATAR_MAX_UPLOAD_MB } from "@/lib/settings";
 
 type AvatarSettingsPanelProps = {
   avatarUrl: string | null;
@@ -118,9 +118,9 @@ export function AvatarSettingsPanel({
           </div>
         )}
 
-        <p className="text-sm leading-7 text-muted">
-          Accepted formats: JPG, PNG, and WEBP. Max size: {AVATAR_MAX_UPLOAD_MB} MB.
-        </p>
+          <p className="text-sm leading-7 text-muted">
+            Accepted formats: JPG, PNG, and WEBP. Max size: {AVATAR_MAX_UPLOAD_MB} MB, up to {AVATAR_MAX_DIMENSION_PX}px per side.
+          </p>
       </div>
 
       <div className="space-y-6">
@@ -158,8 +158,9 @@ export function AvatarSettingsPanel({
               className="button button-primary"
               disabled={isBusy || !selectedFile}
               onClick={handleUpload}
+              aria-busy={isUploadPending}
             >
-              Upload photo
+              {isUploadPending ? "Uploading..." : "Upload photo"}
             </button>
             <button
               type="button"

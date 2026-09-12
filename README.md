@@ -24,7 +24,7 @@ Kiromilog is a web app for tracking anime and manga. It was also made for a coll
 - Drizzle ORM
 - UploadThing
 - Pusher
-- Jikan API
+- Tenrai API (Jikan v4-compatible catalog, with Jikan as fallback)
 - Iconoir icons
 
 ## Environment
@@ -86,4 +86,4 @@ npm run build
 
 Avatars are stored in UploadThing. Neon stores only the avatar URL and file key.
 
-Anime, manga, and character data comes from Jikan.
+Anime, manga, and character data comes from Tenrai (Jikan v4-compatible), falling back to Jikan.

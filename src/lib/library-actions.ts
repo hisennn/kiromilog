@@ -243,16 +243,6 @@ async function saveFavoriteOrder(
 }
 
 export async function saveAnimeEntryAction(formData: FormData) {
-  const profile = await ensureViewerProfile({ allowCookieMutation: true });
-
-  if (!profile) {
-    redirect("/auth/sign-in");
-  }
-
-  if (!(await canMutateLibrary(profile.id, "save-anime"))) {
-    return false;
-  }
-
   const parsed = updateAnimeEntrySchema.safeParse({
     malId: formData.get("malId"),
     status: formData.get("status"),
@@ -264,8 +254,22 @@ export async function saveAnimeEntryAction(formData: FormData) {
     return false;
   }
 
+  const profile = await ensureViewerProfile({ allowCookieMutation: true });
+
+  if (!profile) {
+    redirect("/auth/sign-in");
+  }
+
+  const [libraryAllowed, cachedAnime] = await Promise.all([
+    canMutateLibrary(profile.id, "save-anime"),
+    cacheMedia(parsed.data.malId, "anime"),
+  ]);
+
+  if (!libraryAllowed) {
+    return false;
+  }
+
   const now = new Date();
-  const cachedAnime = await cacheMedia(parsed.data.malId, "anime");
   const animePayload = cachedAnime.payload as AnimeCachePayload;
   const animeEpisodeLimit = animePayload.episodes ?? null;
   const [existing] = await db
@@ -524,16 +528,6 @@ export async function saveFavoriteMangaOrderAction(ids: string[]) {
 }
 
 export async function saveMangaEntryAction(formData: FormData) {
-  const profile = await ensureViewerProfile({ allowCookieMutation: true });
-
-  if (!profile) {
-    redirect("/auth/sign-in");
-  }
-
-  if (!(await canMutateLibrary(profile.id, "save-manga"))) {
-    return false;
-  }
-
   const parsed = updateMangaEntrySchema.safeParse({
     malId: formData.get("malId"),
     status: formData.get("status"),
@@ -546,8 +540,22 @@ export async function saveMangaEntryAction(formData: FormData) {
     return false;
   }
 
+  const profile = await ensureViewerProfile({ allowCookieMutation: true });
+
+  if (!profile) {
+    redirect("/auth/sign-in");
+  }
+
+  const [libraryAllowed, cachedManga] = await Promise.all([
+    canMutateLibrary(profile.id, "save-manga"),
+    cacheMedia(parsed.data.malId, "manga"),
+  ]);
+
+  if (!libraryAllowed) {
+    return false;
+  }
+
   const now = new Date();
-  const cachedManga = await cacheMedia(parsed.data.malId, "manga");
   const mangaPayload = cachedManga.payload as MangaCachePayload;
   const mangaChapterLimit = mangaPayload.chapters ?? null;
   const mangaVolumeLimit = mangaPayload.volumes ?? null;

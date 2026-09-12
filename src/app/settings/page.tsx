@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/app/app-header";
 import { AdultContentSettingsPanel } from "@/components/settings/adult-content-settings-panel";
+import { AccountSecurityPanel } from "@/components/settings/account-security-panel";
 import { AvatarSettingsPanel } from "@/components/settings/avatar-settings-panel";
+import { BioSettingsPanel } from "@/components/settings/bio-settings-panel";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +38,9 @@ export default async function SettingsPage() {
         avatarUrl={profile.avatarUrl}
         username={profile.username}
       />
+      <BioSettingsPanel initialBio={profile.bio} />
       <AdultContentSettingsPanel enabled={profile.showAdultContent} />
+      <AccountSecurityPanel username={profile.username} />
     </main>
   );
 }

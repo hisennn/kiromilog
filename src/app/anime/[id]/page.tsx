@@ -120,7 +120,7 @@ export default async function AnimeDetailPage({ params }: AnimePageProps) {
               modalId="tracking-modal"
               className="w-full"
             />
-            {payload.trailer?.url ? (
+            {payload.trailer?.url && /^https:\/\/(www\.youtube\.com|youtu\.be)\//.test(payload.trailer.url) ? (
               <a className="button button-ghost w-full justify-center" href={payload.trailer.url} rel="noreferrer" target="_blank">
                 Watch trailer
               </a>

@@ -3,7 +3,6 @@ import Link from "next/link";
 
 type UserSearchResultCardProps = {
   user: {
-    id: string;
     username: string;
     nickname: string;
     avatarUrl: string | null;

@@ -46,10 +46,8 @@ export const users = pgTable(
     nickname: varchar("nickname", { length: 50 }).notNull(),
     avatarUrl: text("avatar_url"),
     avatarPath: text("avatar_path"),
-    avatarMaxUploadMb: integer("avatar_max_upload_mb").default(5).notNull(),
     showAdultContent: boolean("show_adult_content").default(false).notNull(),
     bio: varchar("bio", { length: 280 }),
-    onboardingCompleted: boolean("onboarding_completed").default(false).notNull(),
     ...timestamps,
   },
   (table) => [
@@ -137,6 +135,27 @@ export const chatMessages = pgTable(
       table.createdAt,
     ),
     index("chat_messages_sender_idx").on(table.senderId),
+  ],
+);
+
+export const chatThreadClears = pgTable(
+  "chat_thread_clears",
+  {
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => chatThreads.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    clearedAt: timestamp("cleared_at", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.threadId, table.userId],
+      name: "chat_thread_clears_pk",
+    }),
   ],
 );
 

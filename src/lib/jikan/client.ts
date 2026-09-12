@@ -1,7 +1,36 @@
 import "server-only";
 
-const JIKAN_BASE_URL = "https://api.jikan.moe/v4";
+// Catalog provider speaking the Jikan v4 schema. Tenrai is primary because
+// the public Jikan API is sunset (brownout since 2026-09-01, shutdown
+// 2026-10-01) and its search endpoints already fail; Jikan remains as
+// fallback while it still responds.
+const CATALOG_API_BASE_URLS = [
+  "https://api.tenrai.org/v1",
+  "https://api.jikan.moe/v4",
+];
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const CATALOG_TIMEOUT_MS = 10_000;
+
+export class CatalogUnavailableError extends Error {
+  readonly status: number | null;
+  readonly endpoint: string;
+  readonly retryable: boolean;
+
+  constructor(
+    message: string,
+    options: { status?: number | null; endpoint: string; retryable?: boolean; cause?: unknown },
+  ) {
+    super(message, options.cause === undefined ? undefined : { cause: options.cause });
+    this.name = "CatalogUnavailableError";
+    this.status = options.status ?? null;
+    this.endpoint = options.endpoint;
+    this.retryable = options.retryable ?? false;
+  }
+}
+
+export function isCatalogUnavailable(error: unknown): error is CatalogUnavailableError {
+  return error instanceof CatalogUnavailableError;
+}
 
 type SearchMediaType = "anime" | "manga";
 type SearchCharacterType = "characters";
@@ -123,33 +152,80 @@ function dedupeByMalId<T extends { malId: number }>(items: T[]) {
   });
 }
 
-async function fetchFromJikan<T>(path: string, searchParams?: URLSearchParams) {
-  const query = searchParams?.toString();
-  const url = `${JIKAN_BASE_URL}${path}${query ? `?${query}` : ""}`;
-  const response = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-    },
-    next: {
-      revalidate: 60,
-    },
-  });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(`Jikan request failed: ${response.status} ${text}`);
-  }
-
-  return (await response.json()) as T;
+function isRetryableStatus(status: number) {
+  return status === 429 || status >= 500;
 }
 
-export async function searchMedia(
-  query: string,
-  mediaType: SearchMediaType,
-  options?: { includeAdultContent?: boolean; limit?: number; page?: number },
-) {
-  const result = await searchMediaPage(query, mediaType, options);
-  return result.items;
+async function fetchFromProvider<T>(baseUrl: string, path: string, searchParams?: URLSearchParams) {
+  const query = searchParams?.toString();
+  const url = `${baseUrl}${path}${query ? `?${query}` : ""}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CATALOG_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+      signal: controller.signal,
+      next: {
+        revalidate: 60,
+      },
+    });
+
+    if (response.ok) {
+      return (await response.json()) as T;
+    }
+
+    const body = await response.text().catch(() => "");
+    throw new CatalogUnavailableError("Catalog temporarily unavailable.", {
+      status: response.status,
+      endpoint: path,
+      retryable: isRetryableStatus(response.status),
+      cause: body.slice(0, 500),
+    });
+  } catch (error) {
+    if (error instanceof CatalogUnavailableError) {
+      throw error;
+    }
+
+    throw new CatalogUnavailableError("Catalog temporarily unavailable.", {
+      status: null,
+      endpoint: path,
+      retryable: true,
+      cause: error,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchFromCatalog<T>(path: string, searchParams?: URLSearchParams) {
+  let lastError: unknown = null;
+
+  for (const baseUrl of CATALOG_API_BASE_URLS) {
+    try {
+      return await fetchFromProvider<T>(baseUrl, path, searchParams);
+    } catch (error) {
+      // Non-retryable means a bad request or a missing resource: the next
+      // provider would answer the same, so fail fast instead of cascading.
+      if (error instanceof CatalogUnavailableError && error.retryable) {
+        lastError = error;
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw lastError instanceof CatalogUnavailableError
+    ? lastError
+    : new CatalogUnavailableError("Catalog temporarily unavailable.", {
+        status: null,
+        endpoint: path,
+        retryable: true,
+        cause: lastError,
+      });
 }
 
 export async function searchMediaPage(
@@ -167,7 +243,7 @@ export async function searchMediaPage(
     params.set("sfw", "true");
   }
 
-  const response = await fetchFromJikan<JikanSearchResponse>(`/${mediaType}`, params);
+  const response = await fetchFromCatalog<JikanSearchResponse>(`/${mediaType}`, params);
   const mappedResults = response.data.map((item) => ({
     malId: item.mal_id,
     mediaType,
@@ -199,7 +275,7 @@ export async function searchCharacters(
     order_by: "favorites",
     sort: "desc",
   });
-  const response = await fetchFromJikan<JikanCharacterSearchResponse>(
+  const response = await fetchFromCatalog<JikanCharacterSearchResponse>(
     `/${"characters" satisfies SearchCharacterType}`,
     params,
   );
@@ -220,7 +296,7 @@ export async function searchCharacters(
 }
 
 export async function fetchFullMediaEntry(malId: number, mediaType: SearchMediaType) {
-  const response = await fetchFromJikan<JikanFullResponse>(`/${mediaType}/${malId}/full`);
+  const response = await fetchFromCatalog<JikanFullResponse>(`/${mediaType}/${malId}/full`);
   const item = response.data;
 
   return {
@@ -235,7 +311,7 @@ export async function fetchFullMediaEntry(malId: number, mediaType: SearchMediaT
 }
 
 export async function fetchFullCharacterEntry(malId: number) {
-  const response = await fetchFromJikan<JikanCharacterFullResponse>(`/characters/${malId}/full`);
+  const response = await fetchFromCatalog<JikanCharacterFullResponse>(`/characters/${malId}/full`);
   const item = response.data;
 
   return {
@@ -248,7 +324,7 @@ export async function fetchFullCharacterEntry(malId: number) {
 }
 
 export async function fetchMediaCharacters(malId: number, mediaType: SearchMediaType) {
-  const response = await fetchFromJikan<JikanMediaCharacterResponse>(`/${mediaType}/${malId}/characters`);
+  const response = await fetchFromCatalog<JikanMediaCharacterResponse>(`/${mediaType}/${malId}/characters`);
 
   return dedupeByMalId(
     response.data

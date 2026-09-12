@@ -9,7 +9,7 @@ import { SearchResultCard } from "@/components/search/search-result-card";
 import { UserSearchResultCard } from "@/components/search/user-search-result-card";
 import { db } from "@/lib/db";
 import { favoriteAnime, favoriteManga, userAnimeList, userFollows, userMangaList, users } from "@/lib/db/schema";
-import { searchCharacters, searchMediaPage } from "@/lib/jikan/client";
+import { isCatalogUnavailable, searchCharacters, searchMediaPage } from "@/lib/jikan/client";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 export const dynamic = "force-dynamic";
@@ -51,26 +51,29 @@ async function searchUsers(query: string, page: number) {
       .where(where),
   ]);
 
-  const items = await Promise.all(
-    rows.map(async (user) => {
-      const [followers, following] = await Promise.all([
+  const rowIds = rows.map((row) => row.id);
+  const [followerCounts, followingCounts] = rowIds.length
+    ? await Promise.all([
         db
-          .select({ count: count() })
+          .select({ userId: userFollows.followingId, count: count() })
           .from(userFollows)
-          .where(eq(userFollows.followingId, user.id)),
+          .where(inArray(userFollows.followingId, rowIds))
+          .groupBy(userFollows.followingId),
         db
-          .select({ count: count() })
+          .select({ userId: userFollows.followerId, count: count() })
           .from(userFollows)
-          .where(eq(userFollows.followerId, user.id)),
-      ]);
+          .where(inArray(userFollows.followerId, rowIds))
+          .groupBy(userFollows.followerId),
+      ])
+    : [[], []];
+  const followersByUserId = new Map(followerCounts.map((row) => [row.userId, row.count]));
+  const followingByUserId = new Map(followingCounts.map((row) => [row.userId, row.count]));
 
-      return {
-        ...user,
-        followers: followers[0]?.count ?? 0,
-        following: following[0]?.count ?? 0,
-      };
-    }),
-  );
+  const items = rows.map(({ id, ...user }) => ({
+    ...user,
+    followers: followersByUserId.get(id) ?? 0,
+    following: followingByUserId.get(id) ?? 0,
+  }));
 
   const total = totalRows[0]?.count ?? 0;
 
@@ -160,16 +163,38 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const page = clampPage(params.page);
   const searchType: SearchType =
     params.type === "manga" || params.type === "characters" || params.type === "users" ? params.type : "anime";
-  const mediaResult = query && (searchType === "anime" || searchType === "manga")
-    ? await searchMediaPage(query, searchType, {
+  let mediaResult: Awaited<ReturnType<typeof searchMediaPage>> | null = null;
+  let characterResult: Awaited<ReturnType<typeof searchCharacters>> | null = null;
+  let catalogUnavailable = false;
+
+  if (query && (searchType === "anime" || searchType === "manga")) {
+    try {
+      mediaResult = await searchMediaPage(query, searchType, {
         includeAdultContent: profile.showAdultContent,
         limit: SEARCH_PAGE_SIZE,
         page,
-      })
-    : null;
-  const characterResult = query && searchType === "characters"
-    ? await searchCharacters(query, { limit: SEARCH_PAGE_SIZE, page })
-    : null;
+      });
+    } catch (error) {
+      if (!isCatalogUnavailable(error)) {
+        throw error;
+      }
+
+      catalogUnavailable = true;
+    }
+  }
+
+  if (query && searchType === "characters") {
+    try {
+      characterResult = await searchCharacters(query, { limit: SEARCH_PAGE_SIZE, page });
+    } catch (error) {
+      if (!isCatalogUnavailable(error)) {
+        throw error;
+      }
+
+      catalogUnavailable = true;
+    }
+  }
+
   const userResult = query && searchType === "users" ? await searchUsers(query, page) : null;
   const results = mediaResult?.items ?? [];
   const userResults = userResult?.items ?? [];
@@ -284,10 +309,18 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             </span>
           </div>
 
+          {catalogUnavailable ? (
+            <article className="panel">
+              <p className="text-sm text-muted">
+                The anime and manga catalog is temporarily unavailable. User search still works. Try again shortly.
+              </p>
+            </article>
+          ) : null}
+
           {searchType === "users" && userResults.length ? (
             <div className="space-y-3">
               {userResults.map((user) => (
-                <UserSearchResultCard key={user.id} user={user} />
+                <UserSearchResultCard key={user.username} user={user} />
               ))}
             </div>
           ) : searchType === "characters" && characterResults.length ? (

@@ -1,10 +1,10 @@
 import "server-only";
 
-import { and, asc, desc, eq, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, or } from "drizzle-orm";
 
 import { isMutualFollow } from "@/lib/social";
-import { db } from "@/lib/db";
-import { chatMessages, chatThreads, users } from "@/lib/db/schema";
+import { db, sql } from "@/lib/db";
+import { chatMessages, chatThreadClears, chatThreads, users } from "@/lib/db/schema";
 
 export type ChatMessageView = {
   id: string;
@@ -97,11 +97,24 @@ export async function getThreadForViewer(threadId: string, viewerId: string) {
   return thread ?? null;
 }
 
+function getPeerId(thread: typeof chatThreads.$inferSelect, viewerId: string) {
+  return thread.participantAId === viewerId ? thread.participantBId : thread.participantAId;
+}
+
+function normalizeChatRows(result: unknown) {
+  if (Array.isArray(result)) {
+    return result as Array<Record<string, unknown>>;
+  }
+
+  if (result && typeof result === "object" && "rows" in result) {
+    return (result as { rows: Array<Record<string, unknown>> }).rows;
+  }
+
+  return [];
+}
+
 export async function getThreadPeer(thread: typeof chatThreads.$inferSelect, viewerId: string) {
-  const peerId =
-    thread.participantAId === viewerId
-      ? thread.participantBId
-      : thread.participantAId;
+  const peerId = getPeerId(thread, viewerId);
 
   const [peer] = await db
     .select({
@@ -117,7 +130,41 @@ export async function getThreadPeer(thread: typeof chatThreads.$inferSelect, vie
   return peer ?? null;
 }
 
-export async function getThreadMessages(threadId: string): Promise<ChatMessageView[]> {
+export async function getThreadClearCutoff(threadId: string, viewerId: string) {
+  const [row] = await db
+    .select({ clearedAt: chatThreadClears.clearedAt })
+    .from(chatThreadClears)
+    .where(
+      and(
+        eq(chatThreadClears.threadId, threadId),
+        eq(chatThreadClears.userId, viewerId),
+      ),
+    )
+    .limit(1);
+
+  return row?.clearedAt ?? null;
+}
+
+export async function clearThreadForViewer(threadId: string, viewerId: string) {
+  const now = new Date();
+
+  await db
+    .insert(chatThreadClears)
+    .values({
+      threadId,
+      userId: viewerId,
+      clearedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [chatThreadClears.threadId, chatThreadClears.userId],
+      set: { clearedAt: now },
+    });
+
+  return now;
+}
+
+export async function getThreadMessages(threadId: string, viewerId?: string): Promise<ChatMessageView[]> {
+  const cutoff = viewerId ? await getThreadClearCutoff(threadId, viewerId) : null;
   const rows = await db
     .select({
       id: chatMessages.id,
@@ -130,7 +177,11 @@ export async function getThreadMessages(threadId: string): Promise<ChatMessageVi
     })
     .from(chatMessages)
     .innerJoin(users, eq(users.id, chatMessages.senderId))
-    .where(eq(chatMessages.threadId, threadId))
+    .where(
+      cutoff
+        ? and(eq(chatMessages.threadId, threadId), gt(chatMessages.createdAt, cutoff))
+        : eq(chatMessages.threadId, threadId),
+    )
     .orderBy(asc(chatMessages.createdAt))
     .limit(100);
 
@@ -160,34 +211,62 @@ export async function getViewerThreads(viewerId: string) {
     )
     .orderBy(desc(chatThreads.lastMessageAt), desc(chatThreads.updatedAt));
 
-  return Promise.all(
-    rows.map(async (thread) => {
-      const [peer, lastMessageRows] = await Promise.all([
-        getThreadPeer(thread, viewerId),
-        db
-          .select({
-            body: chatMessages.body,
-            senderId: chatMessages.senderId,
-            createdAt: chatMessages.createdAt,
-          })
-          .from(chatMessages)
-          .where(eq(chatMessages.threadId, thread.id))
-          .orderBy(desc(chatMessages.createdAt))
-          .limit(1),
-      ]);
+  if (!rows.length) {
+    return [];
+  }
 
-      return {
-        thread,
-        peer,
-        lastMessage: lastMessageRows[0]
+  const threadIds = rows.map((thread) => thread.id);
+  const peerIds = [...new Set(rows.map((thread) => getPeerId(thread, viewerId)))];
+  const placeholders = threadIds.map((_, index) => `$${index + 2}`).join(", ");
+
+  const [peerRows, lastMessageResult] = await Promise.all([
+    db
+      .select({
+        id: users.id,
+        username: users.username,
+        nickname: users.nickname,
+        avatarUrl: users.avatarUrl,
+      })
+      .from(users)
+      .where(inArray(users.id, peerIds)),
+    sql.query(
+      `SELECT DISTINCT ON (m.thread_id) m.thread_id, m.body, m.sender_id, m.created_at
+       FROM chat_messages m
+       LEFT JOIN chat_thread_clears c ON c.thread_id = m.thread_id AND c.user_id = $1
+       WHERE m.thread_id IN (${placeholders})
+         AND (c.cleared_at IS NULL OR m.created_at > c.cleared_at)
+       ORDER BY m.thread_id, m.created_at DESC`,
+      [viewerId, ...threadIds],
+    ),
+  ]);
+
+  const peerById = new Map(peerRows.map((peer) => [peer.id, peer]));
+  const lastMessageByThreadId = new Map(
+    normalizeChatRows(lastMessageResult).map((row) => [row.thread_id as string, row]),
+  );
+
+  return rows.map((thread) => {
+    const lastMessage = lastMessageByThreadId.get(thread.id);
+    const createdAt =
+      lastMessage?.created_at instanceof Date
+        ? lastMessage.created_at
+        : lastMessage?.created_at
+          ? new Date(lastMessage.created_at as string)
+          : null;
+
+    return {
+      thread,
+      peer: peerById.get(getPeerId(thread, viewerId)) ?? null,
+      lastMessage:
+        lastMessage && createdAt && !Number.isNaN(createdAt.getTime())
           ? {
-              ...lastMessageRows[0],
-              createdAt: lastMessageRows[0].createdAt.toISOString(),
+              body: lastMessage.body as string,
+              senderId: lastMessage.sender_id as string,
+              createdAt: createdAt.toISOString(),
             }
           : null,
-      };
-    }),
-  );
+    };
+  });
 }
 
 export type ViewerThreadPreview = Awaited<ReturnType<typeof getViewerThreads>>[number];

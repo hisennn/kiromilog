@@ -7,6 +7,7 @@ import {
   getClientIpFromRequest,
   secondsUntilReset,
 } from "@/lib/rate-limit";
+import { getSession } from "@/lib/auth/server";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 export async function POST(request: Request) {
@@ -15,6 +16,7 @@ export async function POST(request: Request) {
     key: `api:pusher-auth:${ip}`,
     limit: 120,
     windowMs: 60 * 1000,
+    failClosed: true,
   });
 
   if (!rateLimit.allowed) {
@@ -29,7 +31,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const viewer = await ensureViewerProfile({ allowCookieMutation: true });
+  const cachedSession = await getSession();
+  const viewerId =
+    cachedSession?.user?.emailVerified === true
+      ? cachedSession.user.id
+      : (await ensureViewerProfile({ allowCookieMutation: true })).id;
   const formData = await request.formData();
   const socketId = String(formData.get("socket_id") ?? "");
   const channelName = String(formData.get("channel_name") ?? "");
@@ -38,7 +44,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid channel" }, { status: 400 });
   }
 
-  if (channelName === `private-user-${viewer.id}`) {
+  if (channelName === `private-user-${viewerId}`) {
     const pusher = getPusherServer();
 
     if (!pusher) {
@@ -53,10 +59,10 @@ export async function POST(request: Request) {
   }
 
   const threadId = channelName.replace(/^private-chat-/, "");
-  const thread = await getThreadForViewer(threadId, viewer.id);
+  const thread = await getThreadForViewer(threadId, viewerId);
 
   if (!thread) {
-    return NextResponse.json({ error: "Access negado" }, { status: 403 });
+    return NextResponse.json({ error: "Access denied" }, { status: 403 });
   }
 
   const pusher = getPusherServer();

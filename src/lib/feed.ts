@@ -281,7 +281,17 @@ export async function getProfileFeed(
 }
 
 export async function getProfileByUsername(username: string) {
-  const [profile] = await db.select().from(users).where(eq(users.username, username)).limit(1);
+  const [profile] = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      nickname: users.nickname,
+      avatarUrl: users.avatarUrl,
+      bio: users.bio,
+    })
+    .from(users)
+    .where(eq(users.username, username))
+    .limit(1);
   return profile ?? null;
 }
 
@@ -335,7 +345,16 @@ export async function getProfileConnections(
     })
     .from(users)
     .where(inArray(users.id, userIds));
-  const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const profileById = new Map(
+    profiles.map((profile) => [
+      profile.id,
+      {
+        username: profile.username,
+        nickname: profile.nickname,
+        avatarUrl: profile.avatarUrl,
+      },
+    ]),
+  );
 
   return userIds
     .map((id) => profileById.get(id))

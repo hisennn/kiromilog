@@ -176,6 +176,16 @@ export async function toggleActivityLikeAction(
 
 export async function markActivityLikeNotificationsReadAction() {
   const viewer = await ensureViewerProfile({ allowCookieMutation: true });
+  const ip = await getClientIpFromCurrentRequest();
+  const rateLimit = await consumeRateLimit({
+    key: `activity:mark-read:${ip}:${viewer.id}`,
+    limit: 60,
+    windowMs: 60 * 1000,
+  });
+
+  if (!rateLimit.allowed) {
+    return;
+  }
 
   await db
     .update(activityLikeNotifications)

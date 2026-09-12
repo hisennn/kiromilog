@@ -7,6 +7,7 @@ import Link from "next/link";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState, useTransition } from "react";
 
 import {
+  clearChatHistoryAction,
   refreshChatMessagesAction,
   sendChatMessageAction,
 } from "@/lib/chat-actions";
@@ -40,7 +41,9 @@ export function ChatRoom({
   const [messages, setMessages] = useState(initialMessages);
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [clearError, setClearError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isClearing, startClearTransition] = useTransition();
   const bottomRef = useRef<HTMLDivElement>(null);
   const isSubmittingRef = useRef(false);
 
@@ -130,6 +133,25 @@ export function ChatRoom({
     submitMessage();
   }
 
+  function handleClear() {
+    setClearError(null);
+
+    startClearTransition(async () => {
+      try {
+        const result = await clearChatHistoryAction(threadId);
+
+        if (!result.ok) {
+          setClearError("Could not clear the conversation.");
+          return;
+        }
+
+        setMessages([]);
+      } catch {
+        setClearError("Could not clear the conversation.");
+      }
+    });
+  }
+
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -152,6 +174,26 @@ export function ChatRoom({
           <span className="message-chat-subtitle">View profile</span>
         </span>
       </Link>
+
+      <details className="border-b border-line px-4 py-2">
+        <summary className="cursor-pointer text-xs uppercase tracking-widest text-muted">
+          Clear my view
+        </summary>
+        <div className="mt-2 space-y-2">
+          <p className="text-xs text-muted">
+            Clearing hides this conversation only for you. @{peer.username} will still see the messages.
+          </p>
+          <button
+            className="button button-ghost"
+            disabled={isClearing}
+            onClick={handleClear}
+            type="button"
+          >
+            {isClearing ? "Clearing..." : "Clear conversation for me"}
+          </button>
+          {clearError ? <p className="text-xs text-accent">{clearError}</p> : null}
+        </div>
+      </details>
 
       <div className="message-chat-scroll">
         {messages.length ? (

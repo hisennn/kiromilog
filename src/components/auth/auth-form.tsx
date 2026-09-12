@@ -81,6 +81,14 @@ export function AuthForm({ action, mode }: AuthFormProps) {
 
       {state.error ? <p className="text-sm text-accent">{state.error}</p> : null}
 
+      {!isSignUp ? (
+        <p className="text-sm text-muted">
+          <Link className="underline underline-offset-4 hover:text-foreground" href="/auth/forgot-password">
+            Forgot your password?
+          </Link>
+        </p>
+      ) : null}
+
       <div className="flex flex-col gap-2 sm:flex-row">
         <button className="button button-primary sm:min-w-40" disabled={pending} type="submit">
           {pending

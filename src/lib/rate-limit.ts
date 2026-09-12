@@ -138,19 +138,31 @@ function consumeMemoryRateLimit({
   };
 }
 
-export async function consumeRateLimit(options: RateLimitOptions): Promise<RateLimitResult> {
+export async function consumeRateLimit(
+  options: RateLimitOptions & { failClosed?: boolean },
+): Promise<RateLimitResult> {
   try {
     return await consumeDatabaseRateLimit(options);
   } catch {
+    if (options.failClosed) {
+      return {
+        allowed: false,
+        remaining: 0,
+        resetAt: now() + options.windowMs,
+      };
+    }
+
     return consumeMemoryRateLimit(options);
   }
 }
 
 export function getClientIpFromHeaders(headerStore: Headers) {
+  const forwardedFor = headerStore.get("x-forwarded-for")?.split(",").map((part) => part.trim()).filter(Boolean);
+
   return (
-    headerStore.get("cf-connecting-ip") ||
-    headerStore.get("x-real-ip") ||
-    headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    headerStore.get("cf-connecting-ip")?.trim() ||
+    headerStore.get("x-real-ip")?.trim() ||
+    (forwardedFor && forwardedFor.length > 0 ? forwardedFor[forwardedFor.length - 1] : undefined) ||
     "unknown"
   );
 }

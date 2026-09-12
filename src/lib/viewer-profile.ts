@@ -61,6 +61,10 @@ async function syncViewerProfile(session: ViewerProfileSession) {
     .limit(1);
 
   if (existing[0]) {
+    if (existing[0].email === session.user.email) {
+      return existing[0];
+    }
+
     const [updated] = await db
       .update(users)
       .set({
@@ -88,7 +92,6 @@ async function syncViewerProfile(session: ViewerProfileSession) {
       username,
       nickname,
       avatarUrl: session.user.image ?? null,
-      onboardingCompleted: false,
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({

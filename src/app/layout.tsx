@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Sora } from "next/font/google";
 import localFont from "next/font/local";
 
+import { Toaster } from "@/components/app/toaster";
+
 import "./globals.css";
 
 const display = Sora({
@@ -12,6 +14,7 @@ const display = Sora({
 
 const body = localFont({
   variable: "--font-reading",
+  preload: false,
   src: [
     {
       path: "../../public/fonts/switzer/Switzer-Light.woff2",
@@ -41,8 +44,6 @@ const body = localFont({
   ],
   display: "swap",
 });
-
-import { Toaster } from "@/components/app/toaster";
 
 export const metadata: Metadata = {
   title: {

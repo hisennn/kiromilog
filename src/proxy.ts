@@ -16,6 +16,7 @@ function createContentSecurityPolicy(nonce: string) {
   const scriptSources = [`'self'`, `'nonce-${nonce}'`, "'strict-dynamic'"];
   const connectSources = [
     "'self'",
+    "https://api.tenrai.org",
     "https://api.jikan.moe",
     neonAuthOrigin,
     "https://api.uploadthing.com",

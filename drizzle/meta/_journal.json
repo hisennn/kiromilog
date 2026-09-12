@@ -50,6 +50,20 @@
       "when": 1780082568427,
       "tag": "0006_supreme_captain_flint",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789211345635,
+      "tag": "0007_amused_betty_ross",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789214295804,
+      "tag": "0008_aspiring_purifiers",
+      "breakpoints": true
     }
   ]
 }
