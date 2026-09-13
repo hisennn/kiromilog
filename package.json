@@ -11,11 +11,12 @@
     "test": "tsx --conditions react-server --experimental-test-module-mocks --test \"src/**/*.test.ts\" \"src/**/*.test.mts\"",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package --error-on-fail"
   },
   "dependencies": {
     "@neondatabase/auth": "^0.4.1-beta",

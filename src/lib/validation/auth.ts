@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const emailSchema = z.string().trim().toLowerCase().pipe(z.email("Enter a valid email."));
+
 const nicknameSchema = z
   .string()
   .trim()
@@ -11,7 +13,7 @@ const nicknameSchema = z
   );
 
 export const signInSchema = z.object({
-  email: z.email("Enter a valid email.").trim(),
+  email: emailSchema,
   password: z
     .string()
     .min(8, "Password must be at least 8 characters.")
@@ -27,21 +29,21 @@ export const passwordSchema = z
 
 export const signUpSchema = z.object({
   nickname: nicknameSchema,
-  email: z.email("Enter a valid email.").trim(),
+  email: emailSchema,
   password: passwordSchema,
 });
 
 export const requestPasswordResetSchema = z.object({
-  email: z.email("Enter a valid email.").trim(),
+  email: emailSchema,
 });
 
 export const resetPasswordSchema = z.object({
-  token: z.string().trim().min(1, "Invalid reset link."),
+  token: z.string().trim().min(1, "Invalid reset link.").max(512, "Invalid reset link."),
   newPassword: passwordSchema,
 });
 
 export const changePasswordSchema = z.object({
-  currentPassword: z.string().max(128, "Password can be at most 128 characters."),
+  currentPassword: z.string().min(1, "Enter your current password.").max(128, "Password can be at most 128 characters."),
   newPassword: passwordSchema,
 });
 

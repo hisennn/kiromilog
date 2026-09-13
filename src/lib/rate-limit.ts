@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isIP } from "node:net";
 import { headers } from "next/headers";
 
 import { sql } from "@/lib/db";
@@ -157,14 +158,11 @@ export async function consumeRateLimit(
 }
 
 export function getClientIpFromHeaders(headerStore: Headers) {
-  const forwardedFor = headerStore.get("x-forwarded-for")?.split(",").map((part) => part.trim()).filter(Boolean);
-
-  return (
-    headerStore.get("cf-connecting-ip")?.trim() ||
-    headerStore.get("x-real-ip")?.trim() ||
-    (forwardedFor && forwardedFor.length > 0 ? forwardedFor[forwardedFor.length - 1] : undefined) ||
-    "unknown"
-  );
+  // Only Vercel's ingress is trusted to supply the client address.
+  const ip = process.env.VERCEL === "1"
+    ? headerStore.get("x-vercel-forwarded-for")?.trim()
+    : undefined;
+  return ip && isIP(ip) ? ip : "unknown";
 }
 
 export function getClientIpFromRequest(request: Request) {

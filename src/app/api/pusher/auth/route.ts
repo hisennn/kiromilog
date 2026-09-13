@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
 import { getThreadForViewer } from "@/lib/chat";
 import { getPusherServer } from "@/lib/pusher/server";
@@ -8,9 +9,11 @@ import {
   secondsUntilReset,
 } from "@/lib/rate-limit";
 import { getSession } from "@/lib/auth/server";
-import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 export async function POST(request: Request) {
+  if (request.headers.get("origin") !== new URL(request.url).origin) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   const ip = getClientIpFromRequest(request);
   const rateLimit = await consumeRateLimit({
     key: `api:pusher-auth:${ip}`,
@@ -31,16 +34,19 @@ export async function POST(request: Request) {
     );
   }
 
-  const cachedSession = await getSession();
-  const viewerId =
-    cachedSession?.user?.emailVerified === true
-      ? cachedSession.user.id
-      : (await ensureViewerProfile({ allowCookieMutation: true })).id;
-  const formData = await request.formData();
+  const session = await getSession({ disableCookieCache: true });
+  if (!session?.user?.emailVerified) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const viewerId = session.user.id;
+  const formData = await request.formData().catch(() => null);
+  if (!formData) {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
   const socketId = String(formData.get("socket_id") ?? "");
   const channelName = String(formData.get("channel_name") ?? "");
 
-  if (!socketId) {
+  if (socketId.length > 128 || !/^\d+\.\d+$/.test(socketId)) {
     return NextResponse.json({ error: "Invalid channel" }, { status: 400 });
   }
 
@@ -59,6 +65,9 @@ export async function POST(request: Request) {
   }
 
   const threadId = channelName.replace(/^private-chat-/, "");
+  if (!z.uuid().safeParse(threadId).success) {
+    return NextResponse.json({ error: "Invalid channel" }, { status: 400 });
+  }
   const thread = await getThreadForViewer(threadId, viewerId);
 
   if (!thread) {

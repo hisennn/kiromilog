@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -14,6 +14,7 @@ import {
   getThreadPeer,
 } from "@/lib/chat";
 import { db } from "@/lib/db";
+import { withTransaction } from "@/lib/db/transaction";
 import { chatMessages, chatThreads, users } from "@/lib/db/schema";
 import { getPusherServer } from "@/lib/pusher/server";
 import {
@@ -101,28 +102,30 @@ export async function sendChatMessageAction(
     return { ok: false, error: "forbidden" };
   }
 
-  const now = new Date();
-  const [message] = await db
-    .insert(chatMessages)
-    .values({
-      threadId: thread.id,
-      senderId: viewer.id,
-      body: parsed.data.body,
-    })
-    .returning({
-      id: chatMessages.id,
-      body: chatMessages.body,
-      senderId: chatMessages.senderId,
-      createdAt: chatMessages.createdAt,
-    });
+  const message = await withTransaction(async (tx) => {
+    const [message] = await tx
+      .insert(chatMessages)
+      .values({
+        threadId: thread.id,
+        senderId: viewer.id,
+        body: parsed.data.body,
+      })
+      .returning({
+        id: chatMessages.id,
+        body: chatMessages.body,
+        senderId: chatMessages.senderId,
+        createdAt: chatMessages.createdAt,
+      });
 
-  await db
-    .update(chatThreads)
-    .set({
-      lastMessageAt: now,
-      updatedAt: now,
-    })
-    .where(eq(chatThreads.id, thread.id));
+    await tx
+      .update(chatThreads)
+      .set({
+        lastMessageAt: sql`greatest(${chatThreads.lastMessageAt}, ${message.createdAt})`,
+        updatedAt: sql`greatest(${chatThreads.updatedAt}, ${message.createdAt})`,
+      })
+      .where(eq(chatThreads.id, thread.id));
+    return message;
+  });
 
   const view: ChatMessageView = {
     id: message.id,
@@ -166,6 +169,7 @@ export async function sendChatMessageAction(
 }
 
 export async function refreshChatMessagesAction(threadId: string) {
+  if (!z.uuid().safeParse(threadId).success) return [];
   const viewer = await ensureViewerProfile({ allowCookieMutation: true });
   const ip = await getClientIpFromCurrentRequest();
   const rateLimit = await consumeRateLimit({

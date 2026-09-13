@@ -1,8 +1,9 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { eq, or } from "drizzle-orm";
+import { eq, or, sql } from "drizzle-orm";
 
 import {
   auth,
@@ -119,12 +120,10 @@ async function resolvePendingVerificationEmail(formData?: FormData) {
   const cookieStore = await cookies();
   const cookieEmail = cookieStore.get(PENDING_VERIFICATION_EMAIL_COOKIE)?.value?.trim();
 
-  if (cookieEmail) {
-    return cookieEmail;
-  }
-
-  const formEmail = formData ? readString(formData, "email").trim() : "";
-  return formEmail || null;
+  const parsed = requestPasswordResetSchema.safeParse({
+    email: cookieEmail || (formData ? readString(formData, "email") : ""),
+  });
+  return parsed.success ? parsed.data.email : null;
 }
 
 async function getVerificationCooldownState() {
@@ -149,7 +148,7 @@ async function checkAuthRateLimit(
   const ip = await getClientIpFromCurrentRequest();
   const [identityResult, ipResult] = await Promise.all([
     consumeRateLimit({
-      key: `auth:${action}:${ip}:${identity.toLowerCase()}`,
+      key: `auth:${action}:${ip}:${createHash("sha256").update(identity).digest("hex")}`,
       limit,
       windowMs,
       failClosed: true,
@@ -275,12 +274,12 @@ export async function signUpAction(
     .where(
       or(
         eq(users.username, normalizedNickname),
-        eq(users.email, parsed.data.email),
+        sql`lower(btrim(${users.email})) = ${parsed.data.email}`,
       ),
     )
     .limit(1);
 
-  if (existingUser?.username === normalizedNickname || existingUser?.email === parsed.data.email) {
+  if (existingUser?.username === normalizedNickname || existingUser?.email.trim().toLowerCase() === parsed.data.email) {
     return {
       error: "Could not create an account with those details.",
     };
@@ -307,7 +306,7 @@ export async function signUpAction(
   try {
     await db.insert(users).values({
       id: data.user.id,
-      email: data.user.email,
+      email: data.user.email.trim().toLowerCase(),
       username: normalizedNickname,
       nickname: normalizedNickname,
       avatarUrl: data.user.image ?? null,
@@ -361,6 +360,7 @@ export async function resendVerificationEmailAction(
     email,
     3,
     15 * 60 * 1000,
+    { limit: 10, windowMs: 15 * 60 * 1000 },
   );
 
   if (waitSeconds) {
@@ -425,6 +425,7 @@ export async function verifyEmailCodeAction(
     email,
     10,
     15 * 60 * 1000,
+    { limit: 30, windowMs: 15 * 60 * 1000 },
   );
 
   if (waitSeconds) {
@@ -534,6 +535,7 @@ export async function resetPasswordAction(
     parsed.data.token,
     10,
     15 * 60 * 1000,
+    { limit: 30, windowMs: 15 * 60 * 1000 },
   );
 
   if (waitSeconds) {
@@ -584,6 +586,7 @@ export async function changePasswordAction(
     session.user.id,
     10,
     15 * 60 * 1000,
+    { limit: 30, windowMs: 15 * 60 * 1000 },
   );
 
   if (waitSeconds) {
@@ -605,7 +608,7 @@ export async function changePasswordAction(
   return { success: "Password updated." };
 }
 
-export async function deleteAccountAction(): Promise<
+export async function deleteAccountAction(formData: FormData): Promise<
   { ok: true } | { ok: false; message: string }
 > {
   const session = await getSession({ disableCookieCache: true });
@@ -627,9 +630,33 @@ export async function deleteAccountAction(): Promise<
     return { ok: false, message: "Too many requests. Try again later." };
   }
 
+  const [profile] = await db.select({ username: users.username }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!profile || readString(formData, "username") !== profile.username) {
+    return { ok: false, message: "Enter your username to confirm deletion." };
+  }
+
+  const password = readString(formData, "currentPassword");
+  if (password.length > 128) {
+    return { ok: false, message: "Password can be at most 128 characters." };
+  }
+
   try {
+    const accounts = await auth.listAccounts();
+    if (accounts.error || !accounts.data?.length) {
+      return { ok: false, message: "Could not verify your account. Try again." };
+    }
+    if (accounts.data.some((account) => account.providerId === "credential") && !password) {
+      return { ok: false, message: "Enter your current password." };
+    }
+    if (!password) {
+      const createdAt = session.session?.createdAt;
+      const age = createdAt ? Date.now() - new Date(createdAt).getTime() : NaN;
+      if (!Number.isFinite(age) || age < 0 || age > 10 * 60 * 1000) {
+        return { ok: false, message: "Sign out and sign in again before deleting your account." };
+      }
+    }
     await prepareAccountDeletion(userId);
-    const { error } = await auth.deleteUser();
+    const { error } = await auth.deleteUser(password ? { password } : undefined);
 
     if (error) {
       return { ok: false, message: "Could not delete your account right now." };

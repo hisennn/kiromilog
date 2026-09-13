@@ -4,12 +4,13 @@ import { notFound } from "next/navigation";
 import { AppHeader } from "@/components/app/app-header";
 import { ChatRoom } from "@/components/chat/chat-room";
 import { MessageThreadList } from "@/components/chat/message-thread-list";
-import { getThreadForViewer, getThreadMessages, getThreadPeer, getViewerThreads } from "@/lib/chat";
+import { getThreadPage, getThreadForViewer, getThreadMessages, getThreadPeer, getViewerThreads } from "@/lib/chat";
 import { env } from "@/lib/env";
 import { getFollowState } from "@/lib/social";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 type ChatPageProps = {
+  searchParams: Promise<{ page?: string }>;
   params: Promise<{
     threadId: string;
   }>;
@@ -20,7 +21,8 @@ export const metadata: Metadata = {
   title: "Conversation",
 };
 
-export default async function ChatPage({ params }: ChatPageProps) {
+export default async function ChatPage({ params, searchParams }: ChatPageProps) {
+  const page = getThreadPage((await searchParams).page);
   const viewer = await ensureViewerProfile();
   const { threadId } = await params;
   const thread = await getThreadForViewer(threadId, viewer.id);
@@ -37,7 +39,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
 
   const [messages, threads, followState] = await Promise.all([
     getThreadMessages(thread.id, viewer.id),
-    getViewerThreads(viewer.id),
+    getViewerThreads(viewer.id, page),
     getFollowState(viewer.id, peer.id),
   ]);
   const disabledReason = !followState.isFollowing
@@ -57,7 +59,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
       />
 
       <section className="message-workspace">
-        <MessageThreadList activeThreadId={thread.id} threads={threads} viewerId={viewer.id} />
+        <MessageThreadList activeThreadId={thread.id} threads={threads.items} viewerId={viewer.id} page={page} hasMore={threads.hasMore} />
         <ChatRoom
           canMessage={followState.isMutual}
           disabledReason={disabledReason}

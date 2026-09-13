@@ -40,6 +40,7 @@ NEON_AUTH_BASE_URL=
 NEON_AUTH_COOKIE_SECRET=
 NEXT_PUBLIC_APP_URL=
 UPLOADTHING_TOKEN=
+CRON_SECRET=
 ```
 
 Optional:
@@ -60,6 +61,9 @@ https://kiromilog.vercel.app
 
 ## Local Setup
 
+Use Node.js 24. `CRON_SECRET` must contain at least 32 characters; it is required
+for scheduled cleanup, but its absence does not prevent local pages from loading.
+
 ```bash
 npm install
 npm run dev
@@ -79,8 +83,9 @@ npm run db:studio
 ## Checks
 
 ```bash
-npm run lint
+npm run lint -- --max-warnings=0
 npm test
+npm run typecheck
 npm run build
 ```
 
@@ -101,7 +106,28 @@ Deletion records a durable cleanup job before calling Neon Auth. Cleanup
 only removes data after the identity no longer exists in `neon_auth."user"`.
 If database or avatar cleanup fails, the daily job retries it, including when
 the Auth response was lost. Active identities and unrelated orphan profiles
-are not deleted. The routine processes up to 50 pending deletions per run.
+are not deleted. The routine processes up to 50 pending deletions per run. Attempts older than
+one day are discarded only if the Auth identity is still active.
+
+Credential accounts must supply their current password and type their username.
+Accounts without a password require a sign-in within the last 10 minutes.
+Deleting an account removes entire DM conversations, including the other
+participants' messages. Those conversations cannot be recovered.
+
+The same daily job removes expired rate-limit buckets. To invoke it locally:
+
+```bash
+curl --fail --header "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/account-deletions
+```
+
+Rate limiting trusts only `x-vercel-forwarded-for` when `VERCEL=1`.
+Other deployments and local requests share the `unknown` bucket until a trusted
+ingress is explicitly configured. Incoming Cloudflare and generic forwarded
+headers are not used. Auth rate-limit keys contain hashes rather than reset tokens.
+
+Library and conversation pages load 50 entries at a time. Profile totals use the
+whole library. Transactions use the Neon driver's WebSocket connection and close
+it after each operation; ordinary reads continue to use HTTP.
 
 ## Notes
 

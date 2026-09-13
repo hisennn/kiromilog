@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { isExplicitMediaPayload } from "@/lib/content-preferences";
 import { db } from "@/lib/db";
@@ -362,13 +362,27 @@ export async function getProfileConnections(
 }
 
 export function isLibraryEntryExplicit(
-  entry: { payload: unknown },
+  entry: { payload: unknown; isExplicit?: boolean | null },
   mediaType: "anime" | "manga",
 ) {
-  return isExplicitMediaPayload(entry.payload, mediaType);
+  return entry.isExplicit ?? isExplicitMediaPayload(entry.payload, mediaType);
 }
 
-export async function getProfileLibrary(userId: string, mediaType: "anime" | "manga") {
+export async function getProfileLibrarySummary(userId: string, mediaType: "anime" | "manga", includeAdultContent: boolean) {
+  const table = mediaType === "anime" ? userAnimeList : userMangaList;
+  const cache = mediaType === "anime" ? animeCache : mangaCache;
+  const progress = mediaType === "anime" ? userAnimeList.progressEpisodes : userMangaList.progressChapters;
+  const totalKey = mediaType === "anime" ? "episodes" : "chapters";
+  const [summary] = await db.select({
+    average: sql<string | null>`avg(${table.score}) FILTER (WHERE ${table.score} > 0)`,
+    progress: sql<string>`coalesce(sum(CASE WHEN ${table.status}::text = 'completed' THEN greatest(${progress}, coalesce((${cache.payload}->>${totalKey})::integer, 0)) ELSE ${progress} END), 0)`,
+  }).from(table).leftJoin(cache, eq(cache.malId, table.malId))
+    .where(and(eq(table.userId, userId), includeAdultContent ? undefined : sql`coalesce(${cache.isExplicit}, false) = false`));
+  return { average: summary.average === null ? null : Number(summary.average).toFixed(1), progress: Number(summary.progress) };
+}
+
+export async function getProfileLibrary(userId: string, mediaType: "anime" | "manga", options: { page: number; filter: string }) {
+  const offset = (options.page - 1) * 50;
   if (mediaType === "anime") {
     return db
       .select({
@@ -380,7 +394,8 @@ export async function getProfileLibrary(userId: string, mediaType: "anime" | "ma
         score: userAnimeList.score,
         progress: userAnimeList.progressEpisodes,
         updatedAt: userAnimeList.updatedAt,
-        payload: animeCache.payload,
+        isExplicit: animeCache.isExplicit,
+        payload: sql`jsonb_build_object('type', ${animeCache.payload}->'type', 'episodes', ${animeCache.payload}->'episodes', 'chapters', ${animeCache.payload}->'chapters', 'volumes', ${animeCache.payload}->'volumes')`,
         favoriteMalId: favoriteAnime.malId,
       })
       .from(userAnimeList)
@@ -389,8 +404,10 @@ export async function getProfileLibrary(userId: string, mediaType: "anime" | "ma
         favoriteAnime,
         and(eq(favoriteAnime.userId, userId), eq(favoriteAnime.malId, userAnimeList.malId)),
       )
-      .where(eq(userAnimeList.userId, userId))
-      .orderBy(desc(userAnimeList.updatedAt));
+      .where(and(eq(userAnimeList.userId, userId), options.filter === "all" ? undefined : sql`${userAnimeList.status}::text = ${options.filter}`))
+      .orderBy(sql`${userAnimeList.score} DESC NULLS LAST`, asc(animeCache.title), asc(userAnimeList.id))
+      .limit(51)
+      .offset(offset);
   }
 
   return db
@@ -404,7 +421,8 @@ export async function getProfileLibrary(userId: string, mediaType: "anime" | "ma
       progress: userMangaList.progressChapters,
       progressVolumes: userMangaList.progressVolumes,
       updatedAt: userMangaList.updatedAt,
-      payload: mangaCache.payload,
+      isExplicit: mangaCache.isExplicit,
+      payload: sql`jsonb_build_object('type', ${mangaCache.payload}->'type', 'episodes', ${mangaCache.payload}->'episodes', 'chapters', ${mangaCache.payload}->'chapters', 'volumes', ${mangaCache.payload}->'volumes')`,
       favoriteMalId: favoriteManga.malId,
     })
     .from(userMangaList)
@@ -413,8 +431,10 @@ export async function getProfileLibrary(userId: string, mediaType: "anime" | "ma
       favoriteManga,
       and(eq(favoriteManga.userId, userId), eq(favoriteManga.malId, userMangaList.malId)),
     )
-    .where(eq(userMangaList.userId, userId))
-    .orderBy(desc(userMangaList.updatedAt));
+    .where(and(eq(userMangaList.userId, userId), options.filter === "all" ? undefined : sql`${userMangaList.status}::text = ${options.filter}`))
+    .orderBy(desc(userMangaList.updatedAt), asc(userMangaList.id))
+    .limit(51)
+    .offset(offset);
 }
 
 export async function getProfileFavoriteAnime(

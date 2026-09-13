@@ -40,8 +40,9 @@ export function BioSettingsPanel({ initialBio }: BioSettingsPanelProps) {
       </div>
 
       <div className="field">
-        <span>Short description (up to 280 characters)</span>
+        <label htmlFor="profile-bio">Short description (up to 280 characters)</label>
         <textarea
+          id="profile-bio"
           className="input min-h-24 resize-y"
           maxLength={280}
           name="bio"

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isExplicitMediaPayload } from "@/lib/content-preferences";
 import { eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
@@ -35,6 +36,7 @@ export async function cacheMedia(malId: number, mediaType: CacheMediaType) {
       imageUrl: fresh.imageUrl,
       synopsis: fresh.synopsis,
       payload: fresh.payload,
+      isExplicit: isExplicitMediaPayload(fresh.payload, mediaType),
       cachedAt: new Date(),
       updatedAt: new Date(),
     })
@@ -47,6 +49,7 @@ export async function cacheMedia(malId: number, mediaType: CacheMediaType) {
         imageUrl: fresh.imageUrl,
         synopsis: fresh.synopsis,
         payload: fresh.payload,
+        isExplicit: isExplicitMediaPayload(fresh.payload, mediaType),
         cachedAt: new Date(),
         updatedAt: new Date(),
       },

@@ -49,6 +49,8 @@ type ProfileContentProps = {
   canEdit: boolean;
   initialView: ProfileView;
   initialFilter: string;
+  page: number;
+  hasMore: boolean;
   feed: ActivityItem[];
   animeLibrary: LibraryEntry[];
   mangaLibrary: LibraryEntry[];
@@ -409,6 +411,8 @@ export function ProfileContent({
   feed,
   animeLibrary,
   mangaLibrary,
+  page,
+  hasMore,
   connections,
 }: ProfileContentProps) {
   const filterRef = useRef<HTMLDetailsElement>(null);
@@ -597,6 +601,10 @@ export function ProfileContent({
           )}
         />
       )}
+      {isLibraryView ? <nav aria-label="Library pages" className="flex justify-between gap-4">
+        {page > 1 ? <Link href={`${getProfileHref(activeView, activeFilter)}&page=${page - 1}`}>Previous</Link> : <span />}
+        {hasMore ? <Link href={`${getProfileHref(activeView, activeFilter)}&page=${page + 1}`}>Next</Link> : null}
+      </nav> : null}
     </section>
   );
 }

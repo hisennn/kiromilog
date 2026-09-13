@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
+import { withTransaction } from "@/lib/db/transaction";
 import { users } from "@/lib/db/schema";
 import {
   consumeRateLimit,
@@ -66,7 +67,14 @@ async function removeUploadedAvatar(avatarPath: string | null | undefined) {
     return;
   }
 
-  await utapi.deleteFiles(fileKey).catch(() => undefined);
+  try {
+    const [referenced] = await db.select({ id: users.id }).from(users).where(eq(users.avatarPath, avatarPath!)).limit(1);
+    if (referenced) return;
+    const result = await utapi.deleteFiles(fileKey);
+    if (!result.success) console.error("Avatar file cleanup failed.", { fileKey });
+  } catch {
+    console.error("Avatar file cleanup failed.", { fileKey });
+  }
 }
 
 export async function uploadAvatarAction(formData: FormData) {
@@ -149,16 +157,20 @@ export async function uploadAvatarAction(formData: FormData) {
   const avatarUrl = uploaded.data.ufsUrl;
   const avatarPath = `uploadthing:${uploaded.data.key}`;
 
-  await db
-    .update(users)
-    .set({
-      avatarUrl,
-      avatarPath,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.id, profile.id));
-
-  await removeUploadedAvatar(profile.avatarPath);
+  try {
+    const previousPath = await withTransaction(async (tx) => {
+      const [current] = await tx.select({ avatarPath: users.avatarPath }).from(users)
+        .where(eq(users.id, profile.id)).for("no key update");
+      if (!current) throw new Error("Profile no longer exists.");
+      await tx.update(users).set({ avatarUrl, avatarPath, updatedAt: new Date() })
+        .where(eq(users.id, profile.id));
+      return current.avatarPath;
+    });
+    await removeUploadedAvatar(previousPath);
+  } catch {
+    await removeUploadedAvatar(avatarPath);
+    return { ok: false as const, message: "Could not save the avatar right now." };
+  }
   revalidateViewerRoutes(profile.username);
 
   return { ok: true as const, avatarUrl };
@@ -181,16 +193,14 @@ export async function removeAvatarAction() {
     return { ok: false as const };
   }
 
-  await db
-    .update(users)
-    .set({
-      avatarUrl: null,
-      avatarPath: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.id, profile.id));
-
-  await removeUploadedAvatar(profile.avatarPath);
+  const previousPath = await withTransaction(async (tx) => {
+    const [current] = await tx.select({ avatarPath: users.avatarPath }).from(users)
+      .where(eq(users.id, profile.id)).for("no key update");
+    await tx.update(users).set({ avatarUrl: null, avatarPath: null, updatedAt: new Date() })
+      .where(eq(users.id, profile.id));
+    return current?.avatarPath;
+  });
+  await removeUploadedAvatar(previousPath);
   revalidateViewerRoutes(profile.username);
 
   return { ok: true as const };

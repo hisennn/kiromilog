@@ -17,12 +17,16 @@ type MessageThreadListProps = {
   }>;
   activeThreadId?: string;
   viewerId: string;
+  page: number;
+  hasMore: boolean;
 };
 
 export function MessageThreadList({
   threads,
   activeThreadId,
   viewerId,
+  page,
+  hasMore,
 }: MessageThreadListProps) {
   return (
     <aside className="message-sidebar">
@@ -39,7 +43,7 @@ export function MessageThreadList({
                 className={`message-thread-item ${
                   activeThreadId === thread.id ? "message-thread-item-active" : ""
                 }`}
-                href={`/messages/${thread.id}`}
+                href={`/messages/${thread.id}?page=${page}`}
                 key={thread.id}
               >
                 <span className="message-thread-avatar">
@@ -72,6 +76,10 @@ export function MessageThreadList({
           </div>
         )}
       </div>
+      <nav aria-label="Conversation pages" className="flex justify-between gap-4 p-4">
+        {page > 1 ? <Link href={`${activeThreadId ? `/messages/${activeThreadId}` : "/messages"}?page=${page - 1}`}>Previous</Link> : <span />}
+        {hasMore ? <Link href={`${activeThreadId ? `/messages/${activeThreadId}` : "/messages"}?page=${page + 1}`}>Next</Link> : null}
+      </nav>
     </aside>
   );
 }

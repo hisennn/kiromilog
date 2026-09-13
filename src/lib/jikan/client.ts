@@ -5,7 +5,8 @@ const CATALOG_API_BASE_URLS = [
   "https://api.jikan.moe/v4",
 ];
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const CATALOG_TIMEOUT_MS = 10_000;
+const CATALOG_TIMEOUT_MS = 8_000;
+const PROVIDER_TIMEOUT_MS = 4_000;
 
 export class CatalogUnavailableError extends Error {
   readonly status: number | null;
@@ -149,21 +150,20 @@ function dedupeByMalId<T extends { malId: number }>(items: T[]) {
 }
 
 function isRetryableStatus(status: number) {
-  return status === 429 || status >= 500;
+  return status === 404 || status === 408 || status === 429 || status >= 500;
 }
 
-async function fetchFromProvider<T>(baseUrl: string, path: string, searchParams?: URLSearchParams) {
+async function fetchFromProvider<T>(baseUrl: string, path: string, searchParams: URLSearchParams | undefined, signal: AbortSignal) {
   const query = searchParams?.toString();
   const url = `${baseUrl}${path}${query ? `?${query}` : ""}`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), CATALOG_TIMEOUT_MS);
+  const providerSignal = AbortSignal.any([signal, AbortSignal.timeout(PROVIDER_TIMEOUT_MS)]);
 
   try {
     const response = await fetch(url, {
       headers: {
         Accept: "application/json",
       },
-      signal: controller.signal,
+      signal: providerSignal,
       next: {
         revalidate: 60,
       },
@@ -191,17 +191,17 @@ async function fetchFromProvider<T>(baseUrl: string, path: string, searchParams?
       retryable: true,
       cause: error,
     });
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
 async function fetchFromCatalog<T>(path: string, searchParams?: URLSearchParams) {
   let lastError: unknown = null;
+  const signal = AbortSignal.timeout(CATALOG_TIMEOUT_MS);
 
   for (const baseUrl of CATALOG_API_BASE_URLS) {
     try {
-      return await fetchFromProvider<T>(baseUrl, path, searchParams);
+      signal.throwIfAborted();
+      return await fetchFromProvider<T>(baseUrl, path, searchParams, signal);
     } catch (error) {
       if (error instanceof CatalogUnavailableError && error.retryable) {
         lastError = error;

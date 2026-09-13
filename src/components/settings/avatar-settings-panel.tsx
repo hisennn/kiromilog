@@ -30,17 +30,18 @@ export function AvatarSettingsPanel({
     return () => {
       if (previewUrlRef.current) {
         URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
       }
     };
   }, []);
 
-  const handleFileChange = (file: File | null) => {
+  const handleFileChange = async (file: File | null) => {
     if (previewUrlRef.current) {
       URL.revokeObjectURL(previewUrlRef.current);
       previewUrlRef.current = null;
     }
 
-    setSelectedFile(file);
+    setSelectedFile(null);
 
     if (!file) {
       setPreviewUrl(null);
@@ -56,7 +57,26 @@ export function AvatarSettingsPanel({
 
     const objectUrl = URL.createObjectURL(file);
     previewUrlRef.current = objectUrl;
-    setPreviewUrl(objectUrl);
+    setPreviewUrl(null);
+    try {
+      const image = new window.Image();
+      image.src = objectUrl;
+      await image.decode();
+      if (previewUrlRef.current !== objectUrl) return;
+      if (image.naturalWidth > AVATAR_MAX_DIMENSION_PX || image.naturalHeight > AVATAR_MAX_DIMENSION_PX) {
+        toast(`Use an image up to ${AVATAR_MAX_DIMENSION_PX}px on each side.`, "danger");
+        URL.revokeObjectURL(objectUrl);
+        previewUrlRef.current = null;
+        return;
+      }
+      setSelectedFile(file);
+      setPreviewUrl(objectUrl);
+    } catch {
+      if (previewUrlRef.current !== objectUrl) return;
+      URL.revokeObjectURL(objectUrl);
+      previewUrlRef.current = null;
+      toast("Use a valid JPG, PNG, or WEBP image.", "danger");
+    }
   };
 
   const handleUpload = () => {

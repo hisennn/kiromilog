@@ -1,6 +1,5 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { env } from "@/lib/env";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -11,19 +10,26 @@ function createNonce() {
 }
 
 function createContentSecurityPolicy(nonce: string) {
-  const neonAuthOrigin = new URL(env.NEON_AUTH_BASE_URL).origin;
   const scriptSources = [`'self'`, `'nonce-${nonce}'`, "'strict-dynamic'"];
   const connectSources = [
     "'self'",
     "https://api.tenrai.org",
     "https://api.jikan.moe",
-    neonAuthOrigin,
     "https://api.uploadthing.com",
     "https://*.ufs.sh",
     "https://*.uploadthing.com",
     "https://*.pusher.com",
     "wss://*.pusher.com",
   ];
+
+  try {
+    const authUrl = new URL(process.env.NEON_AUTH_BASE_URL ?? "");
+    if (authUrl.protocol === "https:" || (isDev && authUrl.protocol === "http:")) {
+      connectSources.push(authUrl.origin);
+    }
+  } catch {
+    console.error("NEON_AUTH_BASE_URL is invalid; Auth connections are excluded from CSP.");
+  }
 
   if (isDev) {
     scriptSources.push("'unsafe-eval'");

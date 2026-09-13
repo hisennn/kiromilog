@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 
 import { toast } from "@/components/app/toaster";
 import type { AuthActionState } from "@/lib/validation/auth";
@@ -10,21 +9,18 @@ import { changePasswordAction, deleteAccountAction } from "@/lib/auth-actions";
 const initialState: AuthActionState = {};
 
 export function AccountSecurityPanel({ username }: { username: string }) {
-  const router = useRouter();
   const [state, formAction, pending] = useActionState(changePasswordAction, initialState);
   const [isDeleting, startDeleteTransition] = useTransition();
 
-  function handleDelete() {
+  function handleDelete(formData: FormData) {
     startDeleteTransition(async () => {
-      const result = await deleteAccountAction();
+      const result = await deleteAccountAction(formData);
 
       if (!result.ok) {
         toast(result.message, "danger");
         return;
       }
 
-      router.push("/");
-      router.refresh();
     });
   }
 
@@ -80,20 +76,28 @@ export function AccountSecurityPanel({ username }: { username: string }) {
           <summary className="cursor-pointer text-xs uppercase tracking-widest text-muted">
             Delete my account
           </summary>
-          <div className="mt-2 space-y-2">
+          <form action={handleDelete} className="mt-2 space-y-2">
             <p className="text-xs text-muted">
               This permanently deletes @{username}, lists, favorites, follows, messages, and
-              activity. This cannot be undone.
+              activity. Conversations and messages are also deleted for the other participants. This cannot be undone.
             </p>
+            <label className="field">
+              <span>Type {username} to confirm</span>
+              <input className="input" name="username" required autoComplete="off" />
+            </label>
+            <label className="field">
+              <span>Current password</span>
+              <input className="input" name="currentPassword" type="password" maxLength={128} autoComplete="current-password" />
+              <small>If you only use Google, leave this empty and sign in again before deleting.</small>
+            </label>
             <button
               className="button button-ghost"
               disabled={isDeleting}
-              onClick={handleDelete}
-              type="button"
+              type="submit"
             >
               {isDeleting ? "Deleting..." : "Delete everything"}
             </button>
-          </div>
+          </form>
         </details>
       </section>
     </div>

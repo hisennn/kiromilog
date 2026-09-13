@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { AppHeader } from "@/components/app/app-header";
 import { MessageThreadList } from "@/components/chat/message-thread-list";
-import { getViewerThreads } from "@/lib/chat";
+import { getThreadPage, getViewerThreads } from "@/lib/chat";
 import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 export const dynamic = "force-dynamic";
@@ -10,9 +10,10 @@ export const metadata: Metadata = {
   title: "Messages",
 };
 
-export default async function MessagesPage() {
+export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+  const page = getThreadPage((await searchParams).page);
   const viewer = await ensureViewerProfile();
-  const threads = await getViewerThreads(viewer.id);
+  const threads = await getViewerThreads(viewer.id, page);
 
   return (
     <main className="app-shell animate-fade-in-up">
@@ -25,7 +26,7 @@ export default async function MessagesPage() {
       />
 
       <section className="message-workspace">
-        <MessageThreadList threads={threads} viewerId={viewer.id} />
+        <MessageThreadList threads={threads.items} viewerId={viewer.id} page={page} hasMore={threads.hasMore} />
         <article className="message-chat-panel message-chat-empty-panel">
           <div>
             <p className="eyebrow">Select a conversation</p>

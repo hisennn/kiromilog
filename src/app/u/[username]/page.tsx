@@ -17,6 +17,7 @@ import {
   getProfileFavoriteManga,
   getProfileFeed,
   getProfileLibrary,
+  getProfileLibrarySummary,
   getProfileStats,
   isLibraryEntryExplicit,
 } from "@/lib/feed";
@@ -32,6 +33,7 @@ type ProfilePageProps = {
   searchParams?: Promise<{
     view?: string;
     filter?: string;
+    page?: string;
   }>;
 };
 
@@ -48,43 +50,6 @@ function getProfileView(input?: string): ProfileView {
   }
 
   return "timeline";
-}
-
-function getAverageScore(
-  entries: Array<{
-    score: number | null;
-  }>,
-) {
-  const scoredEntries = entries.filter((entry) => typeof entry.score === "number" && entry.score > 0);
-
-  if (!scoredEntries.length) {
-    return null;
-  }
-
-  const total = scoredEntries.reduce((sum, entry) => sum + (entry.score ?? 0), 0);
-  return (total / scoredEntries.length).toFixed(1);
-}
-
-function getCompletedAnimeProgress(entry: { status: string; progress: number; payload: unknown }) {
-  const payload = entry.payload as AnimeCachePayload | null;
-  const totalEpisodes = payload?.episodes ?? null;
-
-  if (entry.status === "completed" && totalEpisodes && totalEpisodes > entry.progress) {
-    return totalEpisodes;
-  }
-
-  return entry.progress || 0;
-}
-
-function getCompletedMangaProgress(entry: { status: string; progress: number; payload: unknown }) {
-  const payload = entry.payload as MangaCachePayload | null;
-  const totalChapters = payload?.chapters ?? null;
-
-  if (entry.status === "completed" && totalChapters && totalChapters > entry.progress) {
-    return totalChapters;
-  }
-
-  return entry.progress || 0;
 }
 
 export async function generateMetadata({ params }: ProfilePageProps): Promise<Metadata> {
@@ -113,6 +78,8 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
   const { username } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const activeView = getProfileView(resolvedSearchParams?.view);
+  const requestedPage = Number(resolvedSearchParams?.page);
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 1000) : 1;
   const activeFilter = resolvedSearchParams?.filter ?? "all";
   const profile = await getProfileByUsername(username);
   const includeAdultContent = viewer.showAdultContent;
@@ -126,6 +93,8 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
     stats,
     animeLibrary,
     mangaLibrary,
+    animeSummary,
+    mangaSummary,
     favoriteAnime,
     favoriteManga,
     favoriteCharacters,
@@ -134,8 +103,10 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
   ] = await Promise.all([
     getProfileFeed(profile.id, { includeAdultContent, viewerId: viewer.id }),
     getProfileStats(profile.id),
-    getProfileLibrary(profile.id, "anime"),
-    getProfileLibrary(profile.id, "manga"),
+    activeView === "anime" ? getProfileLibrary(profile.id, "anime", { page, filter: activeFilter }) : Promise.resolve([]),
+    activeView === "manga" ? getProfileLibrary(profile.id, "manga", { page, filter: activeFilter }) : Promise.resolve([]),
+    getProfileLibrarySummary(profile.id, "anime", includeAdultContent),
+    getProfileLibrarySummary(profile.id, "manga", includeAdultContent),
     getProfileFavoriteAnime(profile.id, 9, { includeAdultContent }),
     getProfileFavoriteManga(profile.id, 9, { includeAdultContent }),
     getProfileFavoriteCharacters(profile.id, 9),
@@ -145,26 +116,13 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
       : Promise.resolve([]),
   ]);
   const canEditProfile = viewer.id === profile.id;
-  const visibleAnimeLibrary = animeLibrary;
-  const visibleMangaLibrary = mangaLibrary;
-  const unblockedAnimeLibrary = includeAdultContent
-    ? animeLibrary
-    : animeLibrary.filter((entry) => !isLibraryEntryExplicit(entry, "anime"));
-  const unblockedMangaLibrary = includeAdultContent
-    ? mangaLibrary
-    : mangaLibrary.filter((entry) => !isLibraryEntryExplicit(entry, "manga"));
-  const animeAverageScore = getAverageScore(unblockedAnimeLibrary);
-  const mangaAverageScore = getAverageScore(unblockedMangaLibrary);
-
-  const totalEpisodesWatched = unblockedAnimeLibrary.reduce(
-    (sum, entry) => sum + getCompletedAnimeProgress(entry),
-    0,
-  );
-
-  const totalChaptersRead = unblockedMangaLibrary.reduce(
-    (sum, entry) => sum + getCompletedMangaProgress(entry),
-    0,
-  );
+  const hasMore = page < 1000 && (activeView === "anime" ? animeLibrary : mangaLibrary).length > 50;
+  const visibleAnimeLibrary = animeLibrary.slice(0, 50);
+  const visibleMangaLibrary = mangaLibrary.slice(0, 50);
+  const animeAverageScore = animeSummary.average;
+  const mangaAverageScore = mangaSummary.average;
+  const totalEpisodesWatched = animeSummary.progress;
+  const totalChaptersRead = mangaSummary.progress;
   const mappedAnimeLibrary = visibleAnimeLibrary.map((entry) => {
     const isExplicitBlocked =
       !includeAdultContent && isLibraryEntryExplicit(entry, "anime");
@@ -400,6 +358,8 @@ export default async function ProfilePage({ params, searchParams }: ProfilePageP
             animeLibrary={mappedAnimeLibrary}
             canEdit={canEditProfile}
             feed={feed}
+            page={page}
+            hasMore={hasMore}
             initialFilter={activeFilter}
             initialView={activeView}
             connections={connections}

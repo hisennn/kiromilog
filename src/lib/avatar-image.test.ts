@@ -70,3 +70,19 @@ describe("getAvatarDimensions", () => {
     assert.equal(getAvatarDimensions(pngBuffer(10, 10), "image/gif"), null);
   });
 });
+
+
+it("reads progressive JPEG and both basic WebP formats", () => {
+  const progressive = jpegBuffer(640, 480);
+  progressive[21] = 0xc2;
+  assert.deepEqual(getAvatarDimensions(progressive, "image/jpeg"), { width: 640, height: 480 });
+  const vp8 = Buffer.alloc(30);
+  vp8.write("VP8 ", 12); Buffer.from([0x9d, 1, 0x2a]).copy(vp8, 23);
+  vp8.writeUInt16LE(640, 26); vp8.writeUInt16LE(480, 28);
+  assert.deepEqual(getAvatarDimensions(vp8, "image/webp"), { width: 640, height: 480 });
+  const vp8l = Buffer.alloc(25);
+  vp8l.write("VP8L", 12); vp8l[20] = 0x2f;
+  vp8l.writeUInt32LE((639 | (479 << 14)) >>> 0, 21);
+  assert.deepEqual(getAvatarDimensions(vp8l, "image/webp"), { width: 640, height: 480 });
+  assert.equal(getAvatarDimensions(vp8l.subarray(0,24), "image/webp"), null);
+});

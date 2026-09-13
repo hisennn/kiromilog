@@ -62,14 +62,14 @@ async function syncViewerProfile(session: ViewerProfileSession) {
     .limit(1);
 
   if (existing[0]) {
-    if (existing[0].email === session.user.email) {
+    if (existing[0].email === session.user.email.trim().toLowerCase()) {
       return existing[0];
     }
 
     const [updated] = await db
       .update(users)
       .set({
-        email: session.user.email,
+        email: session.user.email.trim().toLowerCase(),
         updatedAt: new Date(),
       })
       .where(eq(users.id, session.user.id))
@@ -95,16 +95,16 @@ async function syncViewerProfile(session: ViewerProfileSession) {
     .insert(users)
     .values({
       id: session.user.id,
-      email: session.user.email,
+      email: session.user.email.trim().toLowerCase(),
       username,
       nickname,
       avatarUrl: session.user.image ?? null,
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
-      target: users.email,
+      target: users.id,
       set: {
-        email: session.user.email,
+        email: session.user.email.trim().toLowerCase(),
         updatedAt: new Date(),
       },
     })
@@ -123,7 +123,7 @@ export async function getViewerProfile() {
   return syncViewerProfile({
     user: {
       id: session.user.id,
-      email: session.user.email,
+      email: session.user.email.trim().toLowerCase(),
       name: session.user.name,
       image: session.user.image,
     },
@@ -136,7 +136,7 @@ export async function ensureViewerProfile(options?: { allowCookieMutation?: bool
   return syncViewerProfile({
     user: {
       id: session.user.id,
-      email: session.user.email,
+      email: session.user.email.trim().toLowerCase(),
       name: session.user.name,
       image: session.user.image,
     },

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { and, count, eq, ilike, inArray, or } from "drizzle-orm";
+import { and, asc, count, eq, ilike, inArray, or } from "drizzle-orm";
 
 import { AppHeader } from "@/components/app/app-header";
 import { CharacterSearchResultCard } from "@/components/search/character-search-result-card";
@@ -30,7 +30,7 @@ type SearchType = "anime" | "manga" | "characters" | "users";
 const SEARCH_PAGE_SIZE = 20;
 
 async function searchUsers(query: string, page: number) {
-  const pattern = `%${query.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+  const pattern = `%${query.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
   const where = or(ilike(users.username, pattern), ilike(users.nickname, pattern));
   const [rows, totalRows] = await Promise.all([
     db
@@ -43,6 +43,7 @@ async function searchUsers(query: string, page: number) {
       })
       .from(users)
       .where(where)
+      .orderBy(asc(users.username), asc(users.id))
       .limit(SEARCH_PAGE_SIZE)
       .offset((page - 1) * SEARCH_PAGE_SIZE),
     db
@@ -94,7 +95,7 @@ function clampPage(input?: string) {
     return 1;
   }
 
-  return page;
+  return Math.min(page, 1000);
 }
 
 function getSearchHref(query: string, type: SearchType, page = 1) {

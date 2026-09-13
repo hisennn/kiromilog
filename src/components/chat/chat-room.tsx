@@ -240,6 +240,7 @@ export function ChatRoom({
         {error ? <p className="mb-2 text-sm text-accent">{error}</p> : null}
         <div className="flex gap-2">
           <textarea
+            aria-label="Message"
             className="input message-composer-input"
             disabled={!canMessage}
             maxLength={500}

@@ -17,6 +17,11 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
+export function getCronSecret() {
+  const result = z.string().min(32).safeParse(process.env.CRON_SECRET);
+  return result.success ? result.data : null;
+}
+
 let cachedEnv: Env | null = null;
 
 export function getEnv() {

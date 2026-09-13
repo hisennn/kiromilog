@@ -1,5 +1,7 @@
 import "server-only";
 
+import { z } from "zod";
+
 import { and, desc, eq, gt, inArray, or } from "drizzle-orm";
 
 import { isMutualFollow } from "@/lib/social";
@@ -80,6 +82,7 @@ export async function getOrCreateThreadForUsers(userAId: string, userBId: string
 }
 
 export async function getThreadForViewer(threadId: string, viewerId: string) {
+  if (!z.uuid().safeParse(threadId).success) return null;
   const [thread] = await db
     .select()
     .from(chatThreads)
@@ -199,7 +202,14 @@ export async function getThreadMessages(threadId: string, viewerId?: string): Pr
   }));
 }
 
-export async function getViewerThreads(viewerId: string) {
+export function getThreadPage(input?: string) {
+  const page = Number(input);
+  return Number.isSafeInteger(page) && page > 0 ? Math.min(page, 1000) : 1;
+}
+
+export async function getViewerThreads(viewerId: string, page = 1) {
+  const pageSize = 50;
+  const offset = (getThreadPage(String(page)) - 1) * pageSize;
   const rows = await db
     .select()
     .from(chatThreads)
@@ -209,10 +219,14 @@ export async function getViewerThreads(viewerId: string) {
         eq(chatThreads.participantBId, viewerId),
       ),
     )
-    .orderBy(desc(chatThreads.lastMessageAt), desc(chatThreads.updatedAt));
+    .orderBy(desc(chatThreads.lastMessageAt), desc(chatThreads.updatedAt), desc(chatThreads.id))
+    .limit(pageSize + 1)
+    .offset(offset);
 
+  const hasMore = page < 1000 && rows.length > pageSize;
+  rows.splice(pageSize);
   if (!rows.length) {
-    return [];
+    return { items: [], hasMore: false };
   }
 
   const threadIds = rows.map((thread) => thread.id);
@@ -235,7 +249,7 @@ export async function getViewerThreads(viewerId: string) {
        LEFT JOIN chat_thread_clears c ON c.thread_id = m.thread_id AND c.user_id = $1
        WHERE m.thread_id IN (${placeholders})
          AND (c.cleared_at IS NULL OR m.created_at > c.cleared_at)
-       ORDER BY m.thread_id, m.created_at DESC`,
+       ORDER BY m.thread_id, m.created_at DESC, m.id DESC`,
       [viewerId, ...threadIds],
     ),
   ]);
@@ -245,7 +259,7 @@ export async function getViewerThreads(viewerId: string) {
     normalizeChatRows(lastMessageResult).map((row) => [row.thread_id as string, row]),
   );
 
-  return rows.map((thread) => {
+  const items = rows.map((thread) => {
     const lastMessage = lastMessageByThreadId.get(thread.id);
     const createdAt =
       lastMessage?.created_at instanceof Date
@@ -267,6 +281,7 @@ export async function getViewerThreads(viewerId: string) {
           : null,
     };
   });
+  return { items, hasMore };
 }
 
-export type ViewerThreadPreview = Awaited<ReturnType<typeof getViewerThreads>>[number];
+export type ViewerThreadPreview = Awaited<ReturnType<typeof getViewerThreads>>["items"][number];

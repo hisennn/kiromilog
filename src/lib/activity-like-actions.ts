@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
+import { withTransaction, type Transaction } from "@/lib/db/transaction";
+import type { ActivityLikeNotificationView } from "@/lib/activity-like-notifications";
 import {
   activities,
   activityLikeNotificationItems,
@@ -51,127 +53,145 @@ export async function toggleActivityLikeAction(
     return { ok: false, error: "limited" };
   }
 
-  const [activity] = await db
-    .select({
-      id: activities.id,
-      actorId: activities.actorId,
-      kind: activities.kind,
-      mediaKind: activities.mediaKind,
-      status: activities.status,
-      progressFrom: activities.progressFrom,
-      progressTo: activities.progressTo,
-      payload: activities.payload,
-      username: users.username,
-    })
-    .from(activities)
-    .innerJoin(users, eq(users.id, activities.actorId))
-    .where(eq(activities.id, parsed.data.activityId))
-    .limit(1);
+  let username: string | undefined;
+  let notificationEvent: { channel: string; payload: ActivityLikeNotificationView } | undefined;
+  const result = await withTransaction(async (tx) => {
+    const [activity] = await tx
+      .select({
+        id: activities.id,
+        actorId: activities.actorId,
+        kind: activities.kind,
+        mediaKind: activities.mediaKind,
+        status: activities.status,
+        progressFrom: activities.progressFrom,
+        progressTo: activities.progressTo,
+        payload: activities.payload,
+        username: users.username,
+      })
+      .from(activities)
+      .innerJoin(users, eq(users.id, activities.actorId))
+      .where(eq(activities.id, parsed.data.activityId))
+      .limit(1)
+      .for("no key update", { of: activities });
 
-  if (!activity) {
-    return { ok: false, error: "not-found" };
-  }
+    if (!activity) {
+      return { ok: false as const, error: "not-found" as const };
+    }
 
-  const existingLike = await db
-    .select({ activityId: activityLikes.activityId })
-    .from(activityLikes)
-    .where(
-      and(
-        eq(activityLikes.activityId, activity.id),
-        eq(activityLikes.userId, viewer.id),
-      ),
-    )
-    .limit(1);
+    username = activity.username;
 
-  if (existingLike.length) {
-    await db
-      .delete(activityLikes)
+    const existingLike = await tx
+      .select({ activityId: activityLikes.activityId })
+      .from(activityLikes)
       .where(
         and(
           eq(activityLikes.activityId, activity.id),
           eq(activityLikes.userId, viewer.id),
         ),
-      );
+      )
+      .limit(1);
 
-    const likeCount = await getActivityLikeCount(activity.id);
-    revalidateActivityViews(activity.username);
+    if (existingLike.length) {
+      await tx
+        .delete(activityLikes)
+        .where(
+          and(
+            eq(activityLikes.activityId, activity.id),
+            eq(activityLikes.userId, viewer.id),
+          ),
+        );
 
-    return { ok: true, liked: false, likeCount };
-  }
+      const likeCount = await getActivityLikeCount(tx, activity.id);
 
-  await db.insert(activityLikes).values({
-    activityId: activity.id,
-    userId: viewer.id,
-  });
+      return { ok: true as const, liked: false, likeCount };
+    }
 
-  if (activity.actorId === viewer.id) {
-    const likeCount = await getActivityLikeCount(activity.id);
-    revalidateActivityViews(activity.username);
-
-    return { ok: true, liked: true, likeCount };
-  }
-
-  const notification = await getOrCreateLikeNotification({
-    recipientId: activity.actorId,
-    actorId: viewer.id,
-  });
-  const notificationItem = await db
-    .insert(activityLikeNotificationItems)
-    .values({
-      notificationId: notification.id,
+    await tx.insert(activityLikes).values({
       activityId: activity.id,
-    })
-    .onConflictDoNothing()
-    .returning({ activityId: activityLikeNotificationItems.activityId });
-  const shouldNotify = notificationItem.length > 0;
+      userId: viewer.id,
+    }).onConflictDoNothing();
 
-  if (shouldNotify) {
-    const activityCount = await getNotificationActivityCount(
-      notification.id,
-      notification.readAt,
-    );
-    const now = new Date();
+    if (activity.actorId === viewer.id) {
+      const likeCount = await getActivityLikeCount(tx, activity.id);
 
-    await db
-      .update(activityLikeNotifications)
-      .set({
-        latestActivityId: activity.id,
-        activityCount,
-        readAt: null,
-        updatedAt: now,
-      })
-      .where(eq(activityLikeNotifications.id, notification.id));
+      return { ok: true as const, liked: true, likeCount };
+    }
 
-    const payload = activity.payload as ActivityPayload | null;
-    const latestActivityText = getActivitySummaryText({
-      kind: activity.kind,
-      mediaKind: activity.mediaKind,
-      status: activity.status,
-      progressFrom: activity.progressFrom,
-      progressTo: activity.progressTo,
-      title: payload?.title ?? null,
-    });
-    const pusher = getPusherServer();
-    await pusher?.trigger(`private-user-${activity.actorId}`, "activity-like:new", {
-      id: notification.id,
+    const notification = await getOrCreateLikeNotification(tx, {
+      recipientId: activity.actorId,
       actorId: viewer.id,
-      activityCount,
-      latestActivityId: activity.id,
-      latestActivityTitle: payload?.title ?? null,
-      latestActivityText,
-      updatedAt: now.toISOString(),
-      actor: {
-        username: viewer.username,
-        nickname: viewer.nickname,
-        avatarUrl: viewer.avatarUrl,
-      },
     });
+    const notificationItem = await tx
+      .insert(activityLikeNotificationItems)
+      .values({
+        notificationId: notification.id,
+        activityId: activity.id,
+      })
+      .onConflictDoNothing()
+      .returning({ activityId: activityLikeNotificationItems.activityId });
+    const shouldNotify = notificationItem.length > 0;
+
+    if (shouldNotify) {
+      const activityCount = await getNotificationActivityCount(
+        tx,
+        notification.id,
+        notification.readAt,
+      );
+      const now = new Date();
+
+      await tx
+        .update(activityLikeNotifications)
+        .set({
+          latestActivityId: activity.id,
+          activityCount,
+          readAt: null,
+          updatedAt: now,
+        })
+        .where(eq(activityLikeNotifications.id, notification.id));
+
+      const payload = activity.payload as ActivityPayload | null;
+      const latestActivityText = getActivitySummaryText({
+        kind: activity.kind,
+        mediaKind: activity.mediaKind,
+        status: activity.status,
+        progressFrom: activity.progressFrom,
+        progressTo: activity.progressTo,
+        title: payload?.title ?? null,
+      });
+      notificationEvent = {
+        channel: `private-user-${activity.actorId}`,
+        payload: {
+          id: notification.id,
+          actorId: viewer.id,
+          activityCount,
+          latestActivityId: activity.id,
+          latestActivityTitle: payload?.title ?? null,
+          latestActivityText,
+          updatedAt: now.toISOString(),
+          actor: {
+            username: viewer.username,
+            nickname: viewer.nickname,
+            avatarUrl: viewer.avatarUrl,
+          },
+        },
+      };
+    }
+
+    const likeCount = await getActivityLikeCount(tx, activity.id);
+
+    return { ok: true as const, liked: true, likeCount };
+  });
+  const pusher = getPusherServer();
+  if (notificationEvent && pusher) {
+    try {
+      await pusher.trigger(notificationEvent.channel, "activity-like:new", notificationEvent.payload);
+    } catch {
+      console.error("Like saved, but realtime notification delivery failed.");
+    }
   }
+  if (username) revalidateActivityViews(username);
+  return result;
 
-  const likeCount = await getActivityLikeCount(activity.id);
-  revalidateActivityViews(activity.username);
-
-  return { ok: true, liked: true, likeCount };
 }
 
 export async function markActivityLikeNotificationsReadAction() {
@@ -196,8 +216,8 @@ export async function markActivityLikeNotificationsReadAction() {
     .where(eq(activityLikeNotifications.recipientId, viewer.id));
 }
 
-async function getActivityLikeCount(activityId: string) {
-  const [row] = await db
+async function getActivityLikeCount(tx: Transaction, activityId: string) {
+  const [row] = await tx
     .select({ count: count() })
     .from(activityLikes)
     .where(eq(activityLikes.activityId, activityId));
@@ -206,10 +226,11 @@ async function getActivityLikeCount(activityId: string) {
 }
 
 async function getNotificationActivityCount(
+  tx: Transaction,
   notificationId: string,
   readAt: Date | null = null,
 ) {
-  const [row] = await db
+  const [row] = await tx
     .select({ count: count() })
     .from(activityLikeNotificationItems)
     .where(
@@ -224,11 +245,11 @@ async function getNotificationActivityCount(
   return row?.count ?? 0;
 }
 
-async function getOrCreateLikeNotification(input: {
+async function getOrCreateLikeNotification(tx: Transaction, input: {
   recipientId: string;
   actorId: string;
 }) {
-  const [notification] = await db
+  const [notification] = await tx
     .insert(activityLikeNotifications)
     .values({
       recipientId: input.recipientId,

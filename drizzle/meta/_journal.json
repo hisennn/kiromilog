@@ -71,6 +71,27 @@
       "when": 1789263438640,
       "tag": "0009_account_deletion_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789281695598,
+      "tag": "0010_rate_limit_cleanup",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789281889750,
+      "tag": "0011_library_visibility",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789281923863,
+      "tag": "0012_normalize_profile_emails",
+      "breakpoints": true
     }
   ]
 }

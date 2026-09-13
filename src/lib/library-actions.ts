@@ -1,12 +1,14 @@
 "use server";
 
 import { and, asc, desc, eq, gte } from "drizzle-orm";
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db, sql } from "@/lib/db";
+import { withTransaction, type Transaction } from "@/lib/db/transaction";
 import {
   activities,
+  users,
   favoriteAnime,
   favoriteManga,
   userAnimeList,
@@ -26,7 +28,7 @@ import { ensureViewerProfile } from "@/lib/viewer-profile";
 
 const FAVORITE_LIMIT = 9;
 
-async function createStatusActivity(input: {
+async function createStatusActivity(tx: Transaction, input: {
   actorId: string;
   mediaType: "anime" | "manga";
   malId: number;
@@ -35,7 +37,7 @@ async function createStatusActivity(input: {
   title: string;
   imageUrl: string | null;
 }) {
-  await db.insert(activities).values({
+  await tx.insert(activities).values({
     actorId: input.actorId,
     kind: input.mediaType === "anime" ? "anime_status" : "manga_status",
     mediaKind: input.mediaType,
@@ -50,7 +52,7 @@ async function createStatusActivity(input: {
   });
 }
 
-async function createOrMergeProgressActivity(input: {
+async function createOrMergeProgressActivity(tx: Transaction, input: {
   actorId: string;
   mediaType: "anime" | "manga";
   malId: number;
@@ -65,7 +67,7 @@ async function createOrMergeProgressActivity(input: {
   const cutoff = new Date(now.getTime() - 60 * 60 * 1000);
   const kind = input.mediaType === "anime" ? "anime_progress" : "manga_progress";
 
-  const [recent] = await db
+  const [recent] = await tx
     .select({
       id: activities.id,
     })
@@ -83,7 +85,7 @@ async function createOrMergeProgressActivity(input: {
     .limit(1);
 
   if (recent) {
-    await db
+    await tx
       .update(activities)
       .set({
         progressTo: input.progressTo,
@@ -95,7 +97,7 @@ async function createOrMergeProgressActivity(input: {
     return;
   }
 
-  await db.insert(activities).values({
+  await tx.insert(activities).values({
     actorId: input.actorId,
     kind,
     mediaKind: input.mediaType,
@@ -129,14 +131,14 @@ async function canMutateLibrary(userId: string, action: string) {
   return rateLimit.allowed;
 }
 
-async function createFavoriteActivity(input: {
+async function createFavoriteActivity(tx: Transaction, input: {
   actorId: string;
   mediaType: "anime" | "manga";
   malId: number;
   title: string;
   imageUrl: string | null;
 }) {
-  await db.insert(activities).values({
+  await tx.insert(activities).values({
     actorId: input.actorId,
     kind: "favorite_added",
     mediaKind: input.mediaType,
@@ -150,7 +152,7 @@ async function createFavoriteActivity(input: {
 }
 
 async function normalizeFavoritePositions(
-  tx: typeof db,
+  tx: Transaction,
   userId: string,
   table: typeof favoriteAnime | typeof favoriteManga,
 ) {
@@ -179,31 +181,23 @@ async function normalizeFavoritePositions(
 }
 
 async function reorderFavoritePositions(
+  tx: Transaction,
   userId: string,
-  tableName: "favorite_anime" | "favorite_manga",
+  table: typeof favoriteAnime | typeof favoriteManga,
   ids: string[],
 ) {
-  await sql.transaction((tx) => [
-    ...ids.map((id, index) =>
-      tx.query(
-        `UPDATE ${tableName} SET position = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3`,
-        [-(index + 1), id, userId],
-      ),
-    ),
-    ...ids.map((id, index) =>
-      tx.query(
-        `UPDATE ${tableName} SET position = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3`,
-        [index + 1, id, userId],
-      ),
-    ),
-  ]);
+  for (const sign of [-1, 1]) {
+    for (const [index, id] of ids.entries()) {
+      await tx.update(table).set({ position: sign * (index + 1), updatedAt: new Date() })
+        .where(and(eq(table.id, id), eq(table.userId, userId)));
+    }
+  }
 }
 
 async function saveFavoriteOrder(
   input: {
     ids: string[];
     table: typeof favoriteAnime | typeof favoriteManga;
-    tableName: "favorite_anime" | "favorite_manga";
     action: string;
   },
 ) {
@@ -213,7 +207,7 @@ async function saveFavoriteOrder(
     redirect("/auth/sign-in");
   }
 
-  if (!input.ids.length || input.ids.length > FAVORITE_LIMIT) {
+  if (!z.array(z.uuid()).min(1).max(FAVORITE_LIMIT).safeParse(input.ids).success) {
     return false;
   }
 
@@ -225,18 +219,23 @@ async function saveFavoriteOrder(
     return false;
   }
 
-  const rows = await db
-    .select({ id: input.table.id })
-    .from(input.table)
-    .where(eq(input.table.userId, profile.id));
+  const saved = await withTransaction(async (tx) => {
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, profile.id)).for("no key update");
+    const rows = await tx
+      .select({ id: input.table.id })
+      .from(input.table)
+      .where(eq(input.table.userId, profile.id));
 
-  const existingIds = new Set(rows.map((row) => row.id));
+    const existingIds = new Set(rows.map((row) => row.id));
 
-  if (rows.length !== input.ids.length || input.ids.some((id) => !existingIds.has(id))) {
-    return false;
-  }
+    if (rows.length !== input.ids.length || input.ids.some((id) => !existingIds.has(id))) {
+      return false;
+    }
 
-  await reorderFavoritePositions(profile.id, input.tableName, input.ids);
+    await reorderFavoritePositions(tx, profile.id, input.table, input.ids);
+    return true;
+  });
+  if (!saved) return false;
   revalidatePath(`/u/${profile.username}`);
 
   return true;
@@ -268,41 +267,30 @@ export async function saveAnimeEntryAction(formData: FormData) {
   const now = new Date();
   const animePayload = cachedAnime.payload as AnimeCachePayload;
   const animeEpisodeLimit = animePayload.episodes ?? null;
-  const [existing] = await db
-    .select()
-    .from(userAnimeList)
-    .where(and(eq(userAnimeList.userId, profile.id), eq(userAnimeList.malId, parsed.data.malId)))
-    .limit(1);
+  await withTransaction(async (tx) => {
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, profile.id)).for("no key update");
+    const [existing] = await tx
+      .select()
+      .from(userAnimeList)
+      .where(and(eq(userAnimeList.userId, profile.id), eq(userAnimeList.malId, parsed.data.malId)))
+      .limit(1);
 
-  const requestedEpisodes = parsed.data.progressEpisodes ?? existing?.progressEpisodes ?? 0;
-  const progressEpisodes =
-    parsed.data.status === "completed" && animeEpisodeLimit !== null
-      ? animeEpisodeLimit
-      : Math.min(requestedEpisodes, animeEpisodeLimit ?? requestedEpisodes);
-  const animeStatus =
-    parsed.data.status === "plan_to_watch" && progressEpisodes > 0
-      ? "watching"
-      : parsed.data.status;
-  const score = parsed.data.score !== undefined ? parsed.data.score : (existing?.score ?? null);
+    const requestedEpisodes = parsed.data.progressEpisodes ?? existing?.progressEpisodes ?? 0;
+    const progressEpisodes =
+      parsed.data.status === "completed" && animeEpisodeLimit !== null
+        ? animeEpisodeLimit
+        : Math.min(requestedEpisodes, animeEpisodeLimit ?? requestedEpisodes);
+    const animeStatus =
+      parsed.data.status === "plan_to_watch" && progressEpisodes > 0
+        ? "watching"
+        : parsed.data.status;
+    const score = parsed.data.score !== undefined ? parsed.data.score : (existing?.score ?? null);
 
-  const [entry] = await db
-    .insert(userAnimeList)
-    .values({
-      userId: profile.id,
-      malId: parsed.data.malId,
-      status: animeStatus,
-      score: score,
-      progressEpisodes: progressEpisodes,
-      startedAt:
-        animeStatus === "watching" || animeStatus === "rewatching"
-          ? existing?.startedAt ?? now
-          : existing?.startedAt ?? null,
-      completedAt: animeStatus === "completed" ? existing?.completedAt ?? now : null,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [userAnimeList.userId, userAnimeList.malId],
-      set: {
+    const [entry] = await tx
+      .insert(userAnimeList)
+      .values({
+        userId: profile.id,
+        malId: parsed.data.malId,
         status: animeStatus,
         score: score,
         progressEpisodes: progressEpisodes,
@@ -312,39 +300,53 @@ export async function saveAnimeEntryAction(formData: FormData) {
             : existing?.startedAt ?? null,
         completedAt: animeStatus === "completed" ? existing?.completedAt ?? now : null,
         updatedAt: now,
-      },
-    })
-    .returning({
-      id: userAnimeList.id,
-      status: userAnimeList.status,
-      progressEpisodes: userAnimeList.progressEpisodes,
-    });
+      })
+      .onConflictDoUpdate({
+        target: [userAnimeList.userId, userAnimeList.malId],
+        set: {
+          status: animeStatus,
+          score: score,
+          progressEpisodes: progressEpisodes,
+          startedAt:
+            animeStatus === "watching" || animeStatus === "rewatching"
+              ? existing?.startedAt ?? now
+              : existing?.startedAt ?? null,
+          completedAt: animeStatus === "completed" ? existing?.completedAt ?? now : null,
+          updatedAt: now,
+        },
+      })
+      .returning({
+        id: userAnimeList.id,
+        status: userAnimeList.status,
+        progressEpisodes: userAnimeList.progressEpisodes,
+      });
 
-  if (entry && progressEpisodes > (existing?.progressEpisodes ?? 0)) {
-    await createOrMergeProgressActivity({
-      actorId: profile.id,
-      mediaType: "anime",
-      malId: parsed.data.malId,
-      listEntryId: entry.id,
-      status: entry.status,
-      title: cachedAnime.title,
-      imageUrl: cachedAnime.imageUrl,
-      progressFrom: existing?.progressEpisodes ?? 0,
-      progressTo: progressEpisodes,
-    });
-  }
+    if (entry && progressEpisodes > (existing?.progressEpisodes ?? 0)) {
+      await createOrMergeProgressActivity(tx, {
+        actorId: profile.id,
+        mediaType: "anime",
+        malId: parsed.data.malId,
+        listEntryId: entry.id,
+        status: entry.status,
+        title: cachedAnime.title,
+        imageUrl: cachedAnime.imageUrl,
+        progressFrom: existing?.progressEpisodes ?? 0,
+        progressTo: progressEpisodes,
+      });
+    }
 
-  if (entry && animeStatus !== existing?.status) {
-    await createStatusActivity({
-      actorId: profile.id,
-      mediaType: "anime",
-      malId: parsed.data.malId,
-      listEntryId: entry.id,
-      status: entry.status,
-      title: cachedAnime.title,
-      imageUrl: cachedAnime.imageUrl,
-    });
-  }
+    if (entry && animeStatus !== existing?.status) {
+      await createStatusActivity(tx, {
+        actorId: profile.id,
+        mediaType: "anime",
+        malId: parsed.data.malId,
+        listEntryId: entry.id,
+        status: entry.status,
+        title: cachedAnime.title,
+        imageUrl: cachedAnime.imageUrl,
+      });
+    }
+  });
 
   invalidateLibraryViews(profile.username, "anime", parsed.data.malId);
 
@@ -371,49 +373,50 @@ export async function toggleFavoriteAnimeAction(
   }
 
   const cachedAnime = await cacheMedia(malId, "anime");
-  let favorited = false;
-  let ok = false;
-  let reason: "limit" | "invalid" = "invalid";
-  const [existing] = await db
-    .select({
-      id: favoriteAnime.id,
-    })
-    .from(favoriteAnime)
-    .where(and(eq(favoriteAnime.userId, profile.id), eq(favoriteAnime.malId, malId)))
-    .limit(1);
-
-  if (existing) {
-    await db.delete(favoriteAnime).where(eq(favoriteAnime.id, existing.id));
-    await normalizeFavoritePositions(db, profile.id, favoriteAnime);
-    ok = true;
-    favorited = false;
-  } else {
-    const currentFavorites = await db
+  const result = await withTransaction(async (tx) => {
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, profile.id)).for("no key update");
+    let favorited = false;
+    let ok = false;
+    let reason: "limit" | "invalid" = "invalid";
+    const [existing] = await tx
       .select({
         id: favoriteAnime.id,
       })
       .from(favoriteAnime)
-      .where(eq(favoriteAnime.userId, profile.id))
-      .orderBy(asc(favoriteAnime.position), asc(favoriteAnime.createdAt));
+      .where(and(eq(favoriteAnime.userId, profile.id), eq(favoriteAnime.malId, malId)))
+      .limit(1);
 
-    if (currentFavorites.length >= FAVORITE_LIMIT) {
-      reason = "limit";
-    } else {
-      await db.insert(favoriteAnime).values({
-        userId: profile.id,
-        malId,
-        position: currentFavorites.length + 1,
-        updatedAt: new Date(),
-      });
-
+    if (existing) {
+      await tx.delete(favoriteAnime).where(eq(favoriteAnime.id, existing.id));
+      await normalizeFavoritePositions(tx, profile.id, favoriteAnime);
       ok = true;
-      favorited = true;
-    }
-  }
+      favorited = false;
+    } else {
+      const currentFavorites = await tx
+        .select({
+          id: favoriteAnime.id,
+        })
+        .from(favoriteAnime)
+        .where(eq(favoriteAnime.userId, profile.id))
+        .orderBy(asc(favoriteAnime.position), asc(favoriteAnime.createdAt));
 
-  if (ok) {
-    if (favorited) {
-      await createFavoriteActivity({
+      if (currentFavorites.length >= FAVORITE_LIMIT) {
+        reason = "limit";
+      } else {
+        await tx.insert(favoriteAnime).values({
+          userId: profile.id,
+          malId,
+          position: currentFavorites.length + 1,
+          updatedAt: new Date(),
+        });
+
+        ok = true;
+        favorited = true;
+      }
+    }
+
+    if (ok && favorited) {
+      await createFavoriteActivity(tx, {
         actorId: profile.id,
         mediaType: "anime",
         malId,
@@ -422,10 +425,10 @@ export async function toggleFavoriteAnimeAction(
       });
     }
 
-    invalidateLibraryViews(profile.username, "anime", malId);
-  }
-
-  return ok ? { ok: true, favorited } : { ok: false, reason };
+    return ok ? { ok: true as const, favorited } : { ok: false as const, reason };
+  });
+  if (result.ok) invalidateLibraryViews(profile.username, "anime", malId);
+  return result;
 }
 
 export async function toggleFavoriteMangaAction(
@@ -448,49 +451,50 @@ export async function toggleFavoriteMangaAction(
   }
 
   const cachedManga = await cacheMedia(malId, "manga");
-  let favorited = false;
-  let ok = false;
-  let reason: "limit" | "invalid" = "invalid";
-  const [existing] = await db
-    .select({
-      id: favoriteManga.id,
-    })
-    .from(favoriteManga)
-    .where(and(eq(favoriteManga.userId, profile.id), eq(favoriteManga.malId, malId)))
-    .limit(1);
-
-  if (existing) {
-    await db.delete(favoriteManga).where(eq(favoriteManga.id, existing.id));
-    await normalizeFavoritePositions(db, profile.id, favoriteManga);
-    ok = true;
-    favorited = false;
-  } else {
-    const currentFavorites = await db
+  const result = await withTransaction(async (tx) => {
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, profile.id)).for("no key update");
+    let favorited = false;
+    let ok = false;
+    let reason: "limit" | "invalid" = "invalid";
+    const [existing] = await tx
       .select({
         id: favoriteManga.id,
       })
       .from(favoriteManga)
-      .where(eq(favoriteManga.userId, profile.id))
-      .orderBy(asc(favoriteManga.position), asc(favoriteManga.createdAt));
+      .where(and(eq(favoriteManga.userId, profile.id), eq(favoriteManga.malId, malId)))
+      .limit(1);
 
-    if (currentFavorites.length >= FAVORITE_LIMIT) {
-      reason = "limit";
-    } else {
-      await db.insert(favoriteManga).values({
-        userId: profile.id,
-        malId,
-        position: currentFavorites.length + 1,
-        updatedAt: new Date(),
-      });
-
+    if (existing) {
+      await tx.delete(favoriteManga).where(eq(favoriteManga.id, existing.id));
+      await normalizeFavoritePositions(tx, profile.id, favoriteManga);
       ok = true;
-      favorited = true;
-    }
-  }
+      favorited = false;
+    } else {
+      const currentFavorites = await tx
+        .select({
+          id: favoriteManga.id,
+        })
+        .from(favoriteManga)
+        .where(eq(favoriteManga.userId, profile.id))
+        .orderBy(asc(favoriteManga.position), asc(favoriteManga.createdAt));
 
-  if (ok) {
-    if (favorited) {
-      await createFavoriteActivity({
+      if (currentFavorites.length >= FAVORITE_LIMIT) {
+        reason = "limit";
+      } else {
+        await tx.insert(favoriteManga).values({
+          userId: profile.id,
+          malId,
+          position: currentFavorites.length + 1,
+          updatedAt: new Date(),
+        });
+
+        ok = true;
+        favorited = true;
+      }
+    }
+
+    if (ok && favorited) {
+      await createFavoriteActivity(tx, {
         actorId: profile.id,
         mediaType: "manga",
         malId,
@@ -499,17 +503,16 @@ export async function toggleFavoriteMangaAction(
       });
     }
 
-    invalidateLibraryViews(profile.username, "manga", malId);
-  }
-
-  return ok ? { ok: true, favorited } : { ok: false, reason };
+    return ok ? { ok: true as const, favorited } : { ok: false as const, reason };
+  });
+  if (result.ok) invalidateLibraryViews(profile.username, "manga", malId);
+  return result;
 }
 
 export async function saveFavoriteAnimeOrderAction(ids: string[]) {
   return saveFavoriteOrder({
     ids,
     table: favoriteAnime,
-    tableName: "favorite_anime",
     action: "reorder-favorite-anime",
   });
 }
@@ -518,7 +521,6 @@ export async function saveFavoriteMangaOrderAction(ids: string[]) {
   return saveFavoriteOrder({
     ids,
     table: favoriteManga,
-    tableName: "favorite_manga",
     action: "reorder-favorite-manga",
   });
 }
@@ -551,47 +553,35 @@ export async function saveMangaEntryAction(formData: FormData) {
   const mangaPayload = cachedManga.payload as MangaCachePayload;
   const mangaChapterLimit = mangaPayload.chapters ?? null;
   const mangaVolumeLimit = mangaPayload.volumes ?? null;
-  const [existing] = await db
-    .select()
-    .from(userMangaList)
-    .where(and(eq(userMangaList.userId, profile.id), eq(userMangaList.malId, parsed.data.malId)))
-    .limit(1);
+  await withTransaction(async (tx) => {
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, profile.id)).for("no key update");
+    const [existing] = await tx
+      .select()
+      .from(userMangaList)
+      .where(and(eq(userMangaList.userId, profile.id), eq(userMangaList.malId, parsed.data.malId)))
+      .limit(1);
 
-  const requestedChapters = parsed.data.progressChapters ?? existing?.progressChapters ?? 0;
-  const requestedVolumes = parsed.data.progressVolumes ?? existing?.progressVolumes ?? 0;
-  const progressChapters =
-    parsed.data.status === "completed" && mangaChapterLimit !== null
-      ? mangaChapterLimit
-      : Math.min(requestedChapters, mangaChapterLimit ?? requestedChapters);
-  const progressVolumes =
-    parsed.data.status === "completed" && mangaVolumeLimit !== null
-      ? mangaVolumeLimit
-      : Math.min(requestedVolumes, mangaVolumeLimit ?? requestedVolumes);
-  const mangaStatus =
-    parsed.data.status === "plan_to_read" && (progressChapters > 0 || progressVolumes > 0)
-      ? "reading"
-      : parsed.data.status;
-  const score = parsed.data.score !== undefined ? parsed.data.score : (existing?.score ?? null);
+    const requestedChapters = parsed.data.progressChapters ?? existing?.progressChapters ?? 0;
+    const requestedVolumes = parsed.data.progressVolumes ?? existing?.progressVolumes ?? 0;
+    const progressChapters =
+      parsed.data.status === "completed" && mangaChapterLimit !== null
+        ? mangaChapterLimit
+        : Math.min(requestedChapters, mangaChapterLimit ?? requestedChapters);
+    const progressVolumes =
+      parsed.data.status === "completed" && mangaVolumeLimit !== null
+        ? mangaVolumeLimit
+        : Math.min(requestedVolumes, mangaVolumeLimit ?? requestedVolumes);
+    const mangaStatus =
+      parsed.data.status === "plan_to_read" && (progressChapters > 0 || progressVolumes > 0)
+        ? "reading"
+        : parsed.data.status;
+    const score = parsed.data.score !== undefined ? parsed.data.score : (existing?.score ?? null);
 
-  const [entry] = await db
-    .insert(userMangaList)
-    .values({
-      userId: profile.id,
-      malId: parsed.data.malId,
-      status: mangaStatus,
-      score: score,
-      progressChapters: progressChapters,
-      progressVolumes: progressVolumes,
-      startedAt:
-        mangaStatus === "reading" || mangaStatus === "rereading"
-          ? existing?.startedAt ?? now
-          : existing?.startedAt ?? null,
-      completedAt: mangaStatus === "completed" ? existing?.completedAt ?? now : null,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [userMangaList.userId, userMangaList.malId],
-      set: {
+    const [entry] = await tx
+      .insert(userMangaList)
+      .values({
+        userId: profile.id,
+        malId: parsed.data.malId,
         status: mangaStatus,
         score: score,
         progressChapters: progressChapters,
@@ -602,39 +592,54 @@ export async function saveMangaEntryAction(formData: FormData) {
             : existing?.startedAt ?? null,
         completedAt: mangaStatus === "completed" ? existing?.completedAt ?? now : null,
         updatedAt: now,
-      },
-    })
-    .returning({
-      id: userMangaList.id,
-      status: userMangaList.status,
-      progressChapters: userMangaList.progressChapters,
-    });
+      })
+      .onConflictDoUpdate({
+        target: [userMangaList.userId, userMangaList.malId],
+        set: {
+          status: mangaStatus,
+          score: score,
+          progressChapters: progressChapters,
+          progressVolumes: progressVolumes,
+          startedAt:
+            mangaStatus === "reading" || mangaStatus === "rereading"
+              ? existing?.startedAt ?? now
+              : existing?.startedAt ?? null,
+          completedAt: mangaStatus === "completed" ? existing?.completedAt ?? now : null,
+          updatedAt: now,
+        },
+      })
+      .returning({
+        id: userMangaList.id,
+        status: userMangaList.status,
+        progressChapters: userMangaList.progressChapters,
+      });
 
-  if (entry && progressChapters > (existing?.progressChapters ?? 0)) {
-    await createOrMergeProgressActivity({
-      actorId: profile.id,
-      mediaType: "manga",
-      malId: parsed.data.malId,
-      listEntryId: entry.id,
-      status: entry.status,
-      title: cachedManga.title,
-      imageUrl: cachedManga.imageUrl,
-      progressFrom: existing?.progressChapters ?? 0,
-      progressTo: progressChapters,
-    });
-  }
+    if (entry && progressChapters > (existing?.progressChapters ?? 0)) {
+      await createOrMergeProgressActivity(tx, {
+        actorId: profile.id,
+        mediaType: "manga",
+        malId: parsed.data.malId,
+        listEntryId: entry.id,
+        status: entry.status,
+        title: cachedManga.title,
+        imageUrl: cachedManga.imageUrl,
+        progressFrom: existing?.progressChapters ?? 0,
+        progressTo: progressChapters,
+      });
+    }
 
-  if (entry && mangaStatus !== existing?.status) {
-    await createStatusActivity({
-      actorId: profile.id,
-      mediaType: "manga",
-      malId: parsed.data.malId,
-      listEntryId: entry.id,
-      status: entry.status,
-      title: cachedManga.title,
-      imageUrl: cachedManga.imageUrl,
-    });
-  }
+    if (entry && mangaStatus !== existing?.status) {
+      await createStatusActivity(tx, {
+        actorId: profile.id,
+        mediaType: "manga",
+        malId: parsed.data.malId,
+        listEntryId: entry.id,
+        status: entry.status,
+        title: cachedManga.title,
+        imageUrl: cachedManga.imageUrl,
+      });
+    }
+  });
 
   invalidateLibraryViews(profile.username, "manga", parsed.data.malId);
 
@@ -659,25 +664,28 @@ export async function deleteLibraryEntryAction(formData: FormData) {
     return;
   }
 
-  if (mediaType === "anime") {
-    await db
-      .delete(userAnimeList)
-      .where(and(eq(userAnimeList.userId, profile.id), eq(userAnimeList.malId, malId)));
-  } else {
-    await db
-      .delete(userMangaList)
-      .where(and(eq(userMangaList.userId, profile.id), eq(userMangaList.malId, malId)));
-  }
+  await withTransaction(async (tx) => {
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, profile.id)).for("no key update");
+    if (mediaType === "anime") {
+      await tx
+        .delete(userAnimeList)
+        .where(and(eq(userAnimeList.userId, profile.id), eq(userAnimeList.malId, malId)));
+    } else {
+      await tx
+        .delete(userMangaList)
+        .where(and(eq(userMangaList.userId, profile.id), eq(userMangaList.malId, malId)));
+    }
 
-  await db
-    .delete(activities)
-    .where(
-      and(
-        eq(activities.actorId, profile.id),
-        eq(activities.mediaKind, mediaType),
-        eq(activities.mediaMalId, malId),
-      ),
-    );
+    await tx
+      .delete(activities)
+      .where(
+        and(
+          eq(activities.actorId, profile.id),
+          eq(activities.mediaKind, mediaType),
+          eq(activities.mediaMalId, malId),
+        ),
+      );
+  });
 
   invalidateLibraryViews(profile.username, mediaType, malId);
 }

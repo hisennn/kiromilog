@@ -85,7 +85,7 @@ export const rateLimitBuckets = pgTable("rate_limit_buckets", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .defaultNow()
     .notNull(),
-});
+}, (table) => [index("rate_limit_buckets_reset_at_idx").on(table.resetAt)]);
 
 // Survives profile deletion so failed cleanup can be retried.
 export const accountDeletionJobs = pgTable("account_deletion_jobs", {
@@ -177,6 +177,7 @@ export const animeCache = pgTable(
     titleJapanese: text("title_japanese"),
     imageUrl: text("image_url"),
     synopsis: text("synopsis"),
+    isExplicit: boolean("is_explicit").default(false).notNull(),
     payload: jsonb("payload").notNull(),
     cachedAt: timestamp("cached_at", { withTimezone: true, mode: "date" })
       .defaultNow()
@@ -195,6 +196,7 @@ export const mangaCache = pgTable(
     titleJapanese: text("title_japanese"),
     imageUrl: text("image_url"),
     synopsis: text("synopsis"),
+    isExplicit: boolean("is_explicit").default(false).notNull(),
     payload: jsonb("payload").notNull(),
     cachedAt: timestamp("cached_at", { withTimezone: true, mode: "date" })
       .defaultNow()
