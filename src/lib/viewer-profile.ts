@@ -247,11 +247,13 @@ async function syncViewerProfile(session: ViewerProfileSession) {
       redirect("/auth/sign-in");
     }
 
-    console.warn(
-      "[viewer-profile] Reclaiming orphaned profile email from deleted identity.",
+    // Never delete on a read path: an orphaned row is cleaned by the
+    // account-deletion job, not by page views. Fail closed instead.
+    console.error(
+      "[viewer-profile] Email owned by orphaned profile; redirecting to sign-in.",
       { orphanId, userId: session.user.id },
     );
-    await db.delete(users).where(eq(users.id, orphanId));
+    redirect("/auth/sign-in");
   }
 
   const nameSeed =

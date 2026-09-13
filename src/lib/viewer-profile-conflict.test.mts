@@ -91,7 +91,7 @@ after(async () => {
   await postgres.close();
 });
 
-test("insert with orphaned email reclaims and creates new profile without 500", async () => {
+test("insert with orphaned email redirects instead of 500 and preserves data", async () => {
   const email = "orphan@example.com";
   await postgres.query(
     "INSERT INTO users (id, email, username, nickname) VALUES ($1, $2, $3, $3)",
@@ -103,13 +103,11 @@ test("insert with orphaned email reclaims and creates new profile without 500", 
 
   currentSession = sessionFor(orphanNewId, "  ORPHAN@Example.COM ", "Fresh User");
 
-  const profile = await getViewerProfile();
-  assert.equal(profile?.id, orphanNewId);
-  assert.equal(profile?.email, email);
+  await assert.rejects(getViewerProfile(), /REDIRECT:\/auth\/sign-in/);
 
   const rows = await query("SELECT id, email FROM users");
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].id, orphanNewId);
+  assert.equal(rows[0].id, orphanOldId);
   assert.equal(rows[0].email, email);
 });
 
