@@ -107,7 +107,7 @@ export async function uploadAvatarAction(formData: FormData) {
   if (file.size > maxUploadBytes) {
     return {
       ok: false as const,
-      message: "This image is over the 5 MB limit.",
+      message: `This image is over the ${AVATAR_MAX_UPLOAD_MB} MB limit.`,
     };
   }
 

@@ -260,15 +260,11 @@ export async function saveAnimeEntryAction(formData: FormData) {
     redirect("/auth/sign-in");
   }
 
-  const [libraryAllowed, cachedAnime] = await Promise.all([
-    canMutateLibrary(profile.id, "save-anime"),
-    cacheMedia(parsed.data.malId, "anime"),
-  ]);
-
-  if (!libraryAllowed) {
+  if (!(await canMutateLibrary(profile.id, "save-anime"))) {
     return false;
   }
 
+  const cachedAnime = await cacheMedia(parsed.data.malId, "anime");
   const now = new Date();
   const animePayload = cachedAnime.payload as AnimeCachePayload;
   const animeEpisodeLimit = animePayload.episodes ?? null;
@@ -546,15 +542,11 @@ export async function saveMangaEntryAction(formData: FormData) {
     redirect("/auth/sign-in");
   }
 
-  const [libraryAllowed, cachedManga] = await Promise.all([
-    canMutateLibrary(profile.id, "save-manga"),
-    cacheMedia(parsed.data.malId, "manga"),
-  ]);
-
-  if (!libraryAllowed) {
+  if (!(await canMutateLibrary(profile.id, "save-manga"))) {
     return false;
   }
 
+  const cachedManga = await cacheMedia(parsed.data.malId, "manga");
   const now = new Date();
   const mangaPayload = cachedManga.payload as MangaCachePayload;
   const mangaChapterLimit = mangaPayload.chapters ?? null;

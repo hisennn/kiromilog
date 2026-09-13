@@ -31,7 +31,7 @@ import {
   signInSchema,
   signUpSchema,
 } from "@/lib/validation/auth";
-import { utapi } from "@/lib/uploadthing";
+import { completeAccountDeletion, prepareAccountDeletion } from "@/lib/account-deletion";
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -627,26 +627,21 @@ export async function deleteAccountAction(): Promise<
     return { ok: false, message: "Too many requests. Try again later." };
   }
 
-  const [profile] = await db
-    .select({ avatarPath: users.avatarPath })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
+  try {
+    await prepareAccountDeletion(userId);
+    const { error } = await auth.deleteUser();
 
-  const { error } = await auth.deleteUser();
-
-  if (error) {
+    if (error) {
+      return { ok: false, message: "Could not delete your account right now." };
+    }
+  } catch {
     return { ok: false, message: "Could not delete your account right now." };
   }
 
-  await db.delete(users).where(eq(users.id, userId));
-
-  const fileKey = profile?.avatarPath?.startsWith("uploadthing:")
-    ? profile.avatarPath.slice("uploadthing:".length)
-    : null;
-
-  if (fileKey) {
-    await utapi.deleteFiles(fileKey).catch(() => undefined);
+  try {
+    await completeAccountDeletion(userId);
+  } catch {
+    console.error("Account deleted from Auth; cleanup queued for retry.");
   }
 
   redirect("/");

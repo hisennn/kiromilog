@@ -142,14 +142,22 @@ export async function sendChatMessageAction(
   };
 
   const pusher = getPusherServer();
-  await pusher?.trigger(`private-chat-${thread.id}`, "message:new", view);
-  await pusher?.trigger(`private-user-${peer.id}`, "notification:new", {
-    threadId: thread.id,
-    messageId: view.id,
-    body: view.body,
-    createdAt: view.createdAt,
-    sender: view.sender,
-  });
+  if (pusher) {
+    const notifications = await Promise.allSettled([
+      pusher.trigger(`private-chat-${thread.id}`, "message:new", view),
+      pusher.trigger(`private-user-${peer.id}`, "notification:new", {
+        threadId: thread.id,
+        messageId: view.id,
+        body: view.body,
+        createdAt: view.createdAt,
+        sender: view.sender,
+      }),
+    ]);
+
+    if (notifications.some((result) => result.status === "rejected")) {
+      console.error("Chat message saved, but realtime notification delivery failed.");
+    }
+  }
 
   revalidatePath("/messages");
   revalidatePath(`/messages/${thread.id}`);

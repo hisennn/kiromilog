@@ -1,6 +1,7 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
 
 import { getSession, requireVerifiedSession } from "@/lib/auth/server";
 import { db } from "@/lib/db";
@@ -75,6 +76,12 @@ async function syncViewerProfile(session: ViewerProfileSession) {
       .returning();
 
     return updated;
+  }
+
+  const freshSession = await getSession({ disableCookieCache: true });
+
+  if (freshSession?.user?.id !== session.user.id || !freshSession.user.emailVerified) {
+    redirect("/auth/sign-in");
   }
 
   const nameSeed =

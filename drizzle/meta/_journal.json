@@ -64,6 +64,13 @@
       "when": 1789214295804,
       "tag": "0008_aspiring_purifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789263438640,
+      "tag": "0009_account_deletion_jobs",
+      "breakpoints": true
     }
   ]
 }

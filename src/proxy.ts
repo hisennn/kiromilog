@@ -1,10 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { env } from "@/lib/env";
 
 const isDev = process.env.NODE_ENV === "development";
-const neonAuthOrigin = process.env.NEON_AUTH_BASE_URL
-  ? new URL(process.env.NEON_AUTH_BASE_URL).origin
-  : "https://ep-nameless-sound-acasvz4j.neonauth.sa-east-1.aws.neon.tech";
 
 function createNonce() {
   const bytes = new Uint8Array(16);
@@ -13,6 +11,7 @@ function createNonce() {
 }
 
 function createContentSecurityPolicy(nonce: string) {
+  const neonAuthOrigin = new URL(env.NEON_AUTH_BASE_URL).origin;
   const scriptSources = [`'self'`, `'nonce-${nonce}'`, "'strict-dynamic'"];
   const connectSources = [
     "'self'",

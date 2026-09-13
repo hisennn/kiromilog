@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, gt, inArray, or } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, or } from "drizzle-orm";
 
 import { isMutualFollow } from "@/lib/social";
 import { db, sql } from "@/lib/db";
@@ -182,10 +182,10 @@ export async function getThreadMessages(threadId: string, viewerId?: string): Pr
         ? and(eq(chatMessages.threadId, threadId), gt(chatMessages.createdAt, cutoff))
         : eq(chatMessages.threadId, threadId),
     )
-    .orderBy(asc(chatMessages.createdAt))
+    .orderBy(desc(chatMessages.createdAt), desc(chatMessages.id))
     .limit(100);
 
-  return rows.map((row) => ({
+  return rows.reverse().map((row) => ({
     id: row.id,
     body: row.body,
     senderId: row.senderId,

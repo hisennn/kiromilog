@@ -31,6 +31,12 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  experimental: {
+    serverActions: {
+      // Allow multipart metadata around the 1 MB avatar; the action enforces file size.
+      bodySizeLimit: "1100kb",
+    },
+  },
   images: {
     localPatterns: [
       {

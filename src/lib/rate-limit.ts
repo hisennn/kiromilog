@@ -65,7 +65,7 @@ async function consumeDatabaseRateLimit({
       SET
         count = CASE
           WHEN rate_limit_buckets.reset_at <= NOW() THEN 1
-          WHEN rate_limit_buckets.count < $2 THEN rate_limit_buckets.count + 1
+          WHEN rate_limit_buckets.count <= $2 THEN rate_limit_buckets.count + 1
           ELSE rate_limit_buckets.count
         END,
         reset_at = CASE

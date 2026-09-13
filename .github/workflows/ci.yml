@@ -1,14 +1,23 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
       - main
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       DATABASE_URL: postgresql://user:password@example.com/neondb?sslmode=require
       NEON_AUTH_BASE_URL: https://example.neonauth.sa-east-1.aws.neon.tech/neondb/auth
@@ -38,7 +47,7 @@ jobs:
         run: npm audit
 
       - name: Lint
-        run: npm run lint
+        run: npm run lint -- --max-warnings=0
 
       - name: Test
         run: npm test

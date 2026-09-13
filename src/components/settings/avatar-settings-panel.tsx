@@ -47,6 +47,13 @@ export function AvatarSettingsPanel({
       return;
     }
 
+    if (file.size > AVATAR_MAX_UPLOAD_MB * 1024 * 1024) {
+      setSelectedFile(null);
+      setPreviewUrl(null);
+      toast(`This image is over the ${AVATAR_MAX_UPLOAD_MB} MB limit.`, "danger");
+      return;
+    }
+
     const objectUrl = URL.createObjectURL(file);
     previewUrlRef.current = objectUrl;
     setPreviewUrl(objectUrl);
@@ -62,16 +69,20 @@ export function AvatarSettingsPanel({
     formData.set("avatar", selectedFile);
 
     startUploadTransition(async () => {
-      const result = await uploadAvatarAction(formData);
+      try {
+        const result = await uploadAvatarAction(formData);
 
-      if (!result.ok) {
-        toast(result.message, "danger");
-        return;
+        if (!result.ok) {
+          toast(result.message, "danger");
+          return;
+        }
+
+        handleFileChange(null);
+        toast("Avatar updated.");
+        router.refresh();
+      } catch {
+        toast("Could not upload the image right now. Try again.", "danger");
       }
-
-      handleFileChange(null);
-      toast("Avatar updated.");
-      router.refresh();
     });
   };
 

@@ -1,9 +1,5 @@
 import "server-only";
 
-// Catalog provider speaking the Jikan v4 schema. Tenrai is primary because
-// the public Jikan API is sunset (brownout since 2026-09-01, shutdown
-// 2026-10-01) and its search endpoints already fail; Jikan remains as
-// fallback while it still responds.
 const CATALOG_API_BASE_URLS = [
   "https://api.tenrai.org/v1",
   "https://api.jikan.moe/v4",
@@ -207,8 +203,6 @@ async function fetchFromCatalog<T>(path: string, searchParams?: URLSearchParams)
     try {
       return await fetchFromProvider<T>(baseUrl, path, searchParams);
     } catch (error) {
-      // Non-retryable means a bad request or a missing resource: the next
-      // provider would answer the same, so fail fast instead of cascading.
       if (error instanceof CatalogUnavailableError && error.retryable) {
         lastError = error;
         continue;

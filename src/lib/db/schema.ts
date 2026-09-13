@@ -87,6 +87,15 @@ export const rateLimitBuckets = pgTable("rate_limit_buckets", {
     .notNull(),
 });
 
+// Survives profile deletion so failed cleanup can be retried.
+export const accountDeletionJobs = pgTable("account_deletion_jobs", {
+  userId: text("user_id").primaryKey(),
+  avatarPath: text("avatar_path"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .notNull(),
+});
+
 export const chatThreads = pgTable(
   "chat_threads",
   {
