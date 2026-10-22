@@ -61,7 +61,9 @@ https://kiromilog.vercel.app
 
 ## Local Setup
 
-Use Node.js 24. `CRON_SECRET` must contain at least 32 characters; it is required
+Use Node.js 24.22.1 or a newer patched Node.js 24 release. `.node-version` pins the
+local and CI version; Vercel manages patch updates for the `24.x` runtime.
+`CRON_SECRET` must contain at least 32 characters; it is required
 for scheduled cleanup, but its absence does not prevent local pages from loading.
 
 ```bash
