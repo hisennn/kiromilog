@@ -8,9 +8,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "test": "tsx --conditions react-server --experimental-test-module-mocks --test \"src/**/*.test.ts\" \"src/**/*.test.mts\"",
+    "test": "node --test scripts/*.test.mjs && tsx --conditions react-server --experimental-test-module-mocks --test \"src/**/*.test.ts\" \"src/**/*.test.mts\"",
     "start": "next start",
     "lint": "eslint",
+    "audit:security": "node scripts/audit-dependencies.mjs",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

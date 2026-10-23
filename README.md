@@ -85,16 +85,29 @@ npm run db:studio
 ## Checks
 
 ```bash
+npm run audit:security
 npm run lint -- --max-warnings=0
 npm test
 npm run typecheck
 npm run build
 ```
 
-CI runs these checks and `npm audit` on pull requests and pushes to `main`,
+CI runs these checks on pull requests and pushes to `main`,
 and can also be started manually from GitHub Actions. Regression tests use
 an in-memory PostgreSQL (PGlite), apply every migration, and simulate external
 services; no production database or service credentials are used.
+
+`npm run audit:security` runs the full `npm audit --json` and prints its report.
+Until the end of 5 November 2026 (UTC), it accepts only
+[GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) in
+`braces@3.0.3` and the seven known development-only findings that depend on it.
+No patched upstream release is available. These tools process repository patterns
+during linting and package patching.
+The check verifies every affected installation is marked as a development
+dependency in the lockfile and prints a warning while the exception is active.
+Other advisories, production dependencies and audit errors block CI. The accepted
+findings also block CI after the expiry date. Remove the exception once an
+upstream fix is available.
 
 ## Account deletion cleanup
 
